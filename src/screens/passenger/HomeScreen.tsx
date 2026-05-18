@@ -1,9 +1,11 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../services/supabase';
+import { cancelTrip, createTrip, subscribeToTrip } from '../../services/tripService';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 const VEHICLES = ['Auto', 'Moto', 'Camioneta'];
@@ -13,12 +15,10 @@ export const HomeScreen = ({ navigation }: any) => {
   const [fare, setFare] = useState(5);
   const [vehicle, setVehicle] = useState('Auto');
   const [destination, setDestination] = useState('');
-  const [location, setLocation] = useState({
-    latitude: 13.6929,
-    longitude: -89.2182,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  });
+  const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [location, setLocation] = useState({ latitude: 13.6929, longitude: -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+  const [searching, setSearching] = useState(false);
+  const [currentTripId, setCurrentTripId] = useState<string | null>(null);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
 
   useEffect(() => { getLocation(); }, []);
@@ -35,8 +35,56 @@ export const HomeScreen = ({ navigation }: any) => {
     navigation.navigate('SearchDestination', {
       onSelect: (place: { address: string; latitude: number; longitude: number }) => {
         setDestination(place.address);
+        setDestCoords({ latitude: place.latitude, longitude: place.longitude });
       }
     });
+  };
+
+  const handleSearch = async () => {
+    if (!destination) return;
+    setSearching(true);
+    try {
+      const trip = await createTrip({
+        passenger_id: user?.id ?? 'demo',
+        passenger_name: `${user?.name} ${user?.lastName}`,
+        passenger_lat: location.latitude,
+        passenger_lng: location.longitude,
+        destination_address: destination,
+        destination_lat: destCoords?.latitude ?? 13.6929,
+        destination_lng: destCoords?.longitude ?? -89.2182,
+        fare,
+        vehicle_type: vehicle,
+        payment_method: 'cash',
+      });
+
+      setCurrentTripId(trip.id);
+
+      const channel = subscribeToTrip(trip.id, (updatedTrip) => {
+        if (updatedTrip.status === 'accepted') {
+          supabase.removeChannel(channel);
+          setSearching(false);
+          navigation.navigate('ActiveTrip', {
+            tripId: trip.id,
+            driverName: updatedTrip.driver_name,
+            driverPhone: updatedTrip.driver_phone,
+            driverLat: updatedTrip.driver_lat,
+            driverLng: updatedTrip.driver_lng,
+          });
+        }
+      });
+
+      navigation.navigate('Searching', {
+        tripId: trip.id,
+        onCancel: async () => {
+          await cancelTrip(trip.id);
+          setSearching(false);
+          setCurrentTripId(null);
+        }
+      });
+    } catch (err) {
+      Alert.alert('Error', 'No se pudo crear el viaje. Intenta de nuevo.');
+      setSearching(false);
+    }
   };
 
   return (
@@ -49,6 +97,7 @@ export const HomeScreen = ({ navigation }: any) => {
       </View>
       <MapView style={s.map} provider={PROVIDER_DEFAULT} region={location} showsUserLocation showsMyLocationButton>
         <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} title="Tu ubicación" />
+        {destCoords && <Marker coordinate={destCoords} title={destination} pinColor={Colors.danger} />}
       </MapView>
       <View style={s.sheet}>
         <View style={s.handle} />
@@ -81,10 +130,11 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
         <View style={s.safety}><View style={s.safetyDot} /><Text style={s.safetyTxt}>Viaje protegido · SOS disponible · Ruta en tiempo real</Text></View>
         <TouchableOpacity
-          style={[s.btnPrimary, !destination && s.btnDisabled]}
-          onPress={() => { if (destination) navigation.navigate('Searching'); }}
+          style={[s.btnPrimary, (!destination || searching) && s.btnDisabled]}
+          onPress={handleSearch}
+          disabled={!destination || searching}
         >
-          <Text style={s.btnPrimaryTxt}>Buscar conductor →</Text>
+          {searching ? <ActivityIndicator color={Colors.accent} /> : <Text style={s.btnPrimaryTxt}>Buscar conductor →</Text>}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

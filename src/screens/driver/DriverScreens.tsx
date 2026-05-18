@@ -1,31 +1,30 @@
+import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { sendLocalNotification } from '../../services/notificationService';
+import { supabase } from '../../services/supabase';
+import { acceptTrip, completeTrip, getPendingTrips, startTrip, subscribeToNewTrips, updateDriverLocation } from '../../services/tripService';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
-
-const DEMO_REQUESTS = [
-  { id: '1', name: 'Juan Martínez', rating: 4.8, trips: 34, fare: 5.00, origin: 'Col. Escalón', destination: 'Metrocentro', km: 2.3, min: 8, pickup: 1.1 },
-  { id: '2', name: 'María López', rating: 5.0, trips: 12, fare: 7.50, origin: 'Zona Rosa', destination: 'Aeropuerto', km: 18, min: 25, pickup: 0.8 },
-];
 
 const RequestCard = ({ req, onAccept, onDecline }: any) => {
   const timerAnim = useRef(new Animated.Value(1)).current;
   const [showCounter, setShowCounter] = useState(false);
-  const [counterOffer, setCounterOffer] = useState(req.fare.toFixed(2));
+  const [counterOffer, setCounterOffer] = useState(req.fare?.toFixed(2) ?? '5.00');
 
   useEffect(() => {
     Animated.timing(timerAnim, { toValue: 0, duration: 20000, useNativeDriver: false }).start(() => onDecline());
   }, []);
 
-  const initials = req.name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+  const initials = (req.passenger_name ?? 'PA').split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
   const handleCounter = () => {
     const amount = parseFloat(counterOffer);
     if (isNaN(amount) || amount <= 0) { Alert.alert('Ingresa un precio válido'); return; }
     setShowCounter(false);
-    Alert.alert('✅ Contraoferta enviada', `Le ofreciste $${amount.toFixed(2)} a ${req.name}.`, [{ text: 'OK', onPress: onAccept }]);
+    Alert.alert('✅ Contraoferta enviada', `Le ofreciste $${amount.toFixed(2)}`, [{ text: 'OK', onPress: onAccept }]);
   };
 
   return (
@@ -36,15 +35,15 @@ const RequestCard = ({ req, onAccept, onDecline }: any) => {
       <View style={s.cardTop}>
         <View style={s.passRow}>
           <View style={s.passAv}><Text style={s.passAvTxt}>{initials}</Text></View>
-          <View><Text style={s.passName}>{req.name}</Text><Text style={s.passRating}>⭐ {req.rating} · {req.trips} viajes</Text></View>
+          <View><Text style={s.passName}>{req.passenger_name ?? 'Pasajero'}</Text><Text style={s.passRating}>📍 {req.destination_address ?? 'Destino'}</Text></View>
         </View>
-        <View style={s.fareBadge}><Text style={s.fareBadgeTxt}>${req.fare.toFixed(2)}</Text></View>
+        <View style={s.fareBadge}><Text style={s.fareBadgeTxt}>${req.fare?.toFixed(2) ?? '5.00'}</Text></View>
       </View>
       <View style={s.routeMini}>
-        <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.info }]} /><Text style={s.routeTxt}>{req.origin}</Text></View>
-        <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.danger }]} /><Text style={s.routeTxt}>{req.destination}</Text></View>
+        <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.info }]} /><Text style={s.routeTxt}>Ubicación del pasajero</Text></View>
+        <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.danger }]} /><Text style={s.routeTxt}>{req.destination_address ?? 'Destino'}</Text></View>
       </View>
-      <Text style={s.cardMeta}>{req.km} km · ~{req.min} min · {req.pickup} km de ti</Text>
+      <Text style={s.cardMeta}>Tarifa ofrecida: ${req.fare?.toFixed(2)} · {req.vehicle_type ?? 'Auto'}</Text>
       <View style={s.cardBtns}>
         <TouchableOpacity style={s.declineBtn} onPress={onDecline}><Text style={s.declineTxt}>Rechazar</Text></TouchableOpacity>
         <TouchableOpacity style={s.counterBtn} onPress={() => setShowCounter(true)}><Text style={s.counterTxt}>💬 Contraoferta</Text></TouchableOpacity>
@@ -54,7 +53,7 @@ const RequestCard = ({ req, onAccept, onDecline }: any) => {
         <View style={s.modalBg}>
           <View style={s.modalCard}>
             <Text style={s.modalTitle}>Hacer contraoferta</Text>
-            <Text style={s.modalSub}>El pasajero ofreció <Text style={{ fontWeight: '700', color: Colors.primary }}>${req.fare.toFixed(2)}</Text></Text>
+            <Text style={s.modalSub}>El pasajero ofreció <Text style={{ fontWeight: '700', color: Colors.primary }}>${req.fare?.toFixed(2)}</Text></Text>
             <Text style={s.modalSub2}>¿Cuánto quieres cobrar?</Text>
             <View style={s.counterInputWrap}>
               <Text style={s.dollarSign}>$</Text>
@@ -74,14 +73,60 @@ const RequestCard = ({ req, onAccept, onDecline }: any) => {
 export const DriverHomeScreen = ({ navigation }: any) => {
   const { user, updateUser } = useAuth();
   const [isOnline, setIsOnline] = useState(false);
-  const [requests, setRequests] = useState<typeof DEMO_REQUESTS>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
+  const channelRef = useRef<any>(null);
 
-  const toggleOnline = () => {
+  useEffect(() => {
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, []);
+
+  const toggleOnline = async () => {
     const next = !isOnline;
     setIsOnline(next);
     updateUser({ isOnline: next });
-    setRequests(next ? DEMO_REQUESTS : []);
+    if (next) {
+      const pending = await getPendingTrips();
+      setRequests(pending);
+      channelRef.current = subscribeToNewTrips((newTrip) => {
+        setRequests(prev => [newTrip, ...prev]);
+        sendLocalNotification(
+          '🚗 Nueva solicitud de viaje',
+          `${newTrip.passenger_name} necesita ir a ${newTrip.destination_address} · $${newTrip.fare?.toFixed(2)}`,
+          { tripId: newTrip.id }
+        );
+      });
+    } else {
+      setRequests([]);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    }
+  };
+
+  const handleAccept = async (tripId: string) => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      let driverLat = 13.6950;
+      let driverLng = -89.2200;
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        driverLat = loc.coords.latitude;
+        driverLng = loc.coords.longitude;
+      }
+      const trip = await acceptTrip(tripId, {
+        driver_id: user?.id ?? 'demo-driver',
+        driver_name: `${user?.name} ${user?.lastName}`,
+        driver_phone: user?.phone ?? '+50370000000',
+        driver_lat: driverLat,
+        driver_lng: driverLng,
+      });
+      setRequests([]);
+      navigation.navigate('DriverActiveTrip', { trip });
+    } catch {
+      Alert.alert('Error', 'No se pudo aceptar el viaje. Puede que otro conductor lo tomó primero.');
+      setRequests(prev => prev.filter(r => r.id !== tripId));
+    }
   };
 
   return (
@@ -92,7 +137,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
       </View>
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
         <TouchableOpacity style={s.toggleCard} onPress={toggleOnline}>
-          <View><Text style={s.toggleLabel}>{isOnline ? 'En línea' : 'Desconectado'}</Text><Text style={s.toggleSub}>{isOnline ? 'Recibiendo solicitudes' : 'No recibirás solicitudes'}</Text></View>
+          <View><Text style={s.toggleLabel}>{isOnline ? 'En línea' : 'Desconectado'}</Text><Text style={s.toggleSub}>{isOnline ? 'Recibiendo solicitudes reales' : 'No recibirás solicitudes'}</Text></View>
           <View style={[s.toggle, isOnline ? s.toggleOn : s.toggleOff]}><View style={[s.knob, isOnline ? s.knobRight : s.knobLeft]} /></View>
         </TouchableOpacity>
         <View style={s.earningsRow}>
@@ -100,17 +145,17 @@ export const DriverHomeScreen = ({ navigation }: any) => {
             <View key={l} style={s.earnCard}><Text style={s.earnVal}>{v}</Text><Text style={s.earnLabel}>{l}</Text></View>
           ))}
         </View>
-        {isOnline && requests.length > 0 && <Text style={s.sLabel}>Solicitudes cercanas</Text>}
+        {isOnline && requests.length > 0 && <Text style={s.sLabel}>Solicitudes en tiempo real</Text>}
         {requests.map(r => (
           <RequestCard key={r.id} req={r}
-            onAccept={() => { setRequests([]); navigation.navigate('DriverActiveTrip'); }}
+            onAccept={() => handleAccept(r.id)}
             onDecline={() => setRequests(p => p.filter(x => x.id !== r.id))}
           />
         ))}
         {(!isOnline || requests.length === 0) && (
           <View style={s.empty}>
             <Text style={s.emptyIcon}>⏱</Text>
-            <Text style={s.emptyTxt}>{isOnline ? 'Esperando solicitudes...' : 'Activa tu estado para recibir viajes'}</Text>
+            <Text style={s.emptyTxt}>{isOnline ? 'Esperando solicitudes reales...' : 'Activa tu estado para recibir viajes'}</Text>
           </View>
         )}
       </ScrollView>
@@ -118,34 +163,75 @@ export const DriverHomeScreen = ({ navigation }: any) => {
   );
 };
 
-export const DriverActiveTripScreen = ({ navigation }: any) => {
+export const DriverActiveTripScreen = ({ navigation, route }: any) => {
+  const { user } = useAuth();
   const [phase, setPhase] = useState<'pickup'|'trip'>('pickup');
   const [rating, setRating] = useState(0);
   const [showRate, setShowRate] = useState(false);
+  const [driverLocation, setDriverLocation] = useState({ latitude: 13.6950, longitude: -89.2200 });
+  const trip = route?.params?.trip;
+  const locationIntervalRef = useRef<any>(null);
 
-  const driverLocation = { latitude: 13.6950, longitude: -89.2200 };
-  const passengerLocation = { latitude: 13.6929, longitude: -89.2182 };
-  const destinationLocation = { latitude: 13.6910, longitude: -89.2250 };
+  const passengerLocation = {
+    latitude: trip?.passenger_lat ?? 13.6929,
+    longitude: trip?.passenger_lng ?? -89.2182,
+  };
+  const destinationLocation = {
+    latitude: trip?.destination_lat ?? 13.6910,
+    longitude: trip?.destination_lng ?? -89.2250,
+  };
 
-  const handleCall = () => Linking.openURL('tel:+50370001111');
+  useEffect(() => {
+    startLocationUpdates();
+    return () => {
+      if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
+    };
+  }, []);
+
+  const startLocationUpdates = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted' && trip?.id) {
+      locationIntervalRef.current = setInterval(async () => {
+        const loc = await Location.getCurrentPositionAsync({});
+        setDriverLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        await updateDriverLocation(trip.id, loc.coords.latitude, loc.coords.longitude);
+      }, 5000);
+    }
+  };
+
+  const handleCall = () => Linking.openURL(`tel:${trip?.passenger_phone ?? '+50370001111'}`);
   const handleNavigate = () => {
     const dest = phase === 'pickup' ? passengerLocation : destinationLocation;
     Linking.openURL(`https://maps.google.com/?daddr=${dest.latitude},${dest.longitude}`);
+  };
+  const handleStartTrip = async () => {
+    if (trip?.id) {
+      await startTrip(trip.id);
+      await sendLocalNotification('🚗 Viaje iniciado', 'El conductor ha iniciado el viaje hacia tu destino.');
+    }
+    setPhase('trip');
+  };
+  const handleComplete = async () => {
+    if (trip?.id) {
+      await completeTrip(trip.id);
+      await sendLocalNotification('✅ Viaje completado', `Ganaste $${((trip?.fare ?? 5) * 0.9).toFixed(2)} en este viaje.`);
+    }
+    setShowRate(true);
   };
 
   if (showRate) return (
     <SafeAreaView style={s.safe}>
       <View style={s.rateWrap}>
-        <View style={s.passAv}><Text style={s.passAvTxt}>JM</Text></View>
+        <View style={s.passAv}><Text style={s.passAvTxt}>{(trip?.passenger_name ?? 'PA')[0]}</Text></View>
         <Text style={s.rateTitle}>Califica al pasajero</Text>
-        <Text style={s.rateSub}>Juan Martínez · Viaje $5.00</Text>
+        <Text style={s.rateSub}>{trip?.passenger_name ?? 'Pasajero'} · Viaje ${trip?.fare?.toFixed(2) ?? '5.00'}</Text>
         <View style={s.starsRow}>
           {[1,2,3,4,5].map(n => <TouchableOpacity key={n} onPress={() => setRating(n)}><Text style={[s.star, n <= rating && s.starActive]}>★</Text></TouchableOpacity>)}
         </View>
         <View style={s.earCard}>
-          <View style={s.earRow}><Text style={s.earLabel}>Tarifa</Text><Text style={s.earVal}>$5.00</Text></View>
-          <View style={s.earRow}><Text style={s.earLabel}>Comisión GO (10%)</Text><Text style={[s.earVal, { color: Colors.danger }]}>−$0.50</Text></View>
-          <View style={[s.earRow, s.earTotal]}><Text style={s.earTotalLabel}>Tus ganancias</Text><Text style={s.earTotalVal}>$4.50</Text></View>
+          <View style={s.earRow}><Text style={s.earLabel}>Tarifa</Text><Text style={s.earVal}>${trip?.fare?.toFixed(2) ?? '5.00'}</Text></View>
+          <View style={s.earRow}><Text style={s.earLabel}>Comisión GO (10%)</Text><Text style={[s.earVal, { color: Colors.danger }]}>−${((trip?.fare ?? 5) * 0.1).toFixed(2)}</Text></View>
+          <View style={[s.earRow, s.earTotal]}><Text style={s.earTotalLabel}>Tus ganancias</Text><Text style={s.earTotalVal}>${((trip?.fare ?? 5) * 0.9).toFixed(2)}</Text></View>
         </View>
         <TouchableOpacity style={s.btnPrimary} onPress={() => { if (!rating) { Alert.alert('Selecciona una calificación'); return; } navigation.replace('DriverTabs'); }}>
           <Text style={s.btnPrimaryTxt}>Completar y continuar</Text>
@@ -159,9 +245,9 @@ export const DriverActiveTripScreen = ({ navigation }: any) => {
       <View style={s.tripHeader}>
         <Text style={s.tripStatus}>{phase === 'pickup' ? 'En camino al pasajero' : 'Viaje en curso'}</Text>
         <View style={s.tripPassRow}>
-          <View style={s.passAv}><Text style={s.passAvTxt}>JM</Text></View>
-          <View style={{ flex: 1 }}><Text style={s.tripPassName}>Juan Martínez</Text><Text style={s.tripPassSub}>⭐ 4.8 · {phase === 'pickup' ? 'Esperando recogida' : 'En viaje'}</Text></View>
-          <View style={s.farePill}><Text style={s.farePillTxt}>$5.00</Text></View>
+          <View style={s.passAv}><Text style={s.passAvTxt}>{(trip?.passenger_name ?? 'PA')[0]}</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.tripPassName}>{trip?.passenger_name ?? 'Pasajero'}</Text><Text style={s.tripPassSub}>{phase === 'pickup' ? 'Esperando recogida' : 'En viaje'}</Text></View>
+          <View style={s.farePill}><Text style={s.farePillTxt}>${trip?.fare?.toFixed(2) ?? '5.00'}</Text></View>
         </View>
       </View>
       <MapView style={{ flex: 1 }} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: 13.6940, longitude: -89.2191, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
@@ -176,14 +262,14 @@ export const DriverActiveTripScreen = ({ navigation }: any) => {
         />
       </MapView>
       <View style={s.bottomBar}>
-        <Text style={s.pickupHint}>{phase === 'pickup' ? '📍 Dirígete a: Col. Escalón' : '🏁 Destino: Metrocentro'}</Text>
+        <Text style={s.pickupHint}>{phase === 'pickup' ? `📍 Dirígete a: ${trip?.destination_address ?? 'Pasajero'}` : `🏁 Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
         <View style={s.actionRow}>
           <TouchableOpacity style={s.actionBtn} onPress={handleCall}><Text style={{ fontSize: 20 }}>📞</Text></TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: 'Juan Martínez' })}><Text style={{ fontSize: 20 }}>💬</Text></TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: trip?.id ?? 'demo-trip-001', otherName: trip?.passenger_name ?? 'Pasajero' })}><Text style={{ fontSize: 20 }}>💬</Text></TouchableOpacity>
           <TouchableOpacity style={s.actionBtn} onPress={handleNavigate}><Text style={{ fontSize: 20 }}>🧭</Text></TouchableOpacity>
           {phase === 'pickup'
-            ? <TouchableOpacity style={s.primaryBtn} onPress={() => setPhase('trip')}><Text style={s.primaryBtnTxt}>Iniciar viaje</Text></TouchableOpacity>
-            : <TouchableOpacity style={[s.primaryBtn, { backgroundColor: Colors.success }]} onPress={() => setShowRate(true)}><Text style={s.primaryBtnTxt}>Finalizar</Text></TouchableOpacity>
+            ? <TouchableOpacity style={s.primaryBtn} onPress={handleStartTrip}><Text style={s.primaryBtnTxt}>Iniciar viaje</Text></TouchableOpacity>
+            : <TouchableOpacity style={[s.primaryBtn, { backgroundColor: Colors.success }]} onPress={handleComplete}><Text style={s.primaryBtnTxt}>Finalizar</Text></TouchableOpacity>
           }
         </View>
       </View>
@@ -221,7 +307,7 @@ const s = StyleSheet.create({
   passAv: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: Colors.border },
   passAvTxt: { fontSize: FontSize.base, fontWeight: '500', color: Colors.textPrimary },
   passName: { fontSize: FontSize.base, fontWeight: '500', color: Colors.textPrimary },
-  passRating: { fontSize: FontSize.xs, color: Colors.warning, marginTop: 2 },
+  passRating: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   fareBadge: { backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   fareBadgeTxt: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
   routeMini: { borderTopWidth: 0.5, borderBottomWidth: 0.5, borderColor: Colors.border, paddingVertical: 8, marginBottom: 8 },

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { registerForPushNotifications } from '../services/notificationService';
 import { supabase } from '../services/supabase';
 
 export type UserRole = 'passenger' | 'driver';
@@ -37,6 +38,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => { loadStoredUser(); }, []);
+
+  useEffect(() => {
+    if (user) {
+      registerForPushNotifications(user.id).catch(console.log);
+    }
+  }, [user?.id]);
 
   const loadStoredUser = async () => {
     try {
