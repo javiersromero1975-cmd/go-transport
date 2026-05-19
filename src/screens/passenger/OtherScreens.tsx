@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, FlatList, Linking, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, FlatList, Linking, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { payWithPayPal } from '../../services/paypalService';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 export const SearchingScreen = ({ navigation }: any) => {
@@ -48,8 +49,11 @@ const ss = StyleSheet.create({
 });
 
 export const ActiveTripScreen = ({ navigation }: any) => {
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const driverLocation = { latitude: 13.6950, longitude: -89.2200 };
   const passengerLocation = { latitude: 13.6929, longitude: -89.2182 };
+  const FARE = 5.00;
 
   const handleCall = () => Linking.openURL('tel:+50370000000');
   const handleShare = async () => {
@@ -65,6 +69,21 @@ export const ActiveTripScreen = ({ navigation }: any) => {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Llamar 911', style: 'destructive', onPress: () => Linking.openURL('tel:911') },
     ]);
+  };
+
+  const handleFinish = () => setShowPayment(true);
+
+  const handlePay = async () => {
+    if (paymentMethod === 'paypal') {
+      const success = await payWithPayPal(FARE, 'Viaje GO Transport - Carlos Rivas');
+      if (success) {
+        setShowPayment(false);
+        navigation.replace('RateTrip');
+      }
+    } else {
+      setShowPayment(false);
+      navigation.replace('RateTrip');
+    }
   };
 
   return (
@@ -92,7 +111,39 @@ export const ActiveTripScreen = ({ navigation }: any) => {
         <TouchableOpacity style={at.actionBtn} onPress={handleShare}><Text style={at.actionIcon}>📍</Text><Text style={at.actionTxt}>Compartir</Text></TouchableOpacity>
         <TouchableOpacity style={[at.actionBtn, at.sosBtn]} onPress={handleSOS}><Text style={at.actionIcon}>🆘</Text><Text style={[at.actionTxt, { color: Colors.danger, fontWeight: '700' }]}>SOS</Text></TouchableOpacity>
       </View>
-      <TouchableOpacity style={at.finishBtn} onPress={() => navigation.replace('RateTrip')}><Text style={at.finishTxt}>Finalizar viaje</Text></TouchableOpacity>
+      <TouchableOpacity style={at.finishBtn} onPress={handleFinish}><Text style={at.finishTxt}>Finalizar viaje</Text></TouchableOpacity>
+
+      <Modal visible={showPayment} transparent animationType="slide">
+        <View style={at.modalBg}>
+          <View style={at.modalCard}>
+            <Text style={at.modalTitle}>💳 Método de pago</Text>
+            <Text style={at.modalSub}>Total a pagar: <Text style={{ fontWeight: '700', color: Colors.primary }}>${FARE.toFixed(2)}</Text></Text>
+            {[
+              { id: 'cash', label: 'Efectivo', sub: 'Pagar al conductor', icon: '💵' },
+              { id: 'paypal', label: 'PayPal', sub: 'Pago seguro en línea', icon: '🔵' },
+            ].map(m => (
+              <TouchableOpacity key={m.id} style={[at.payMethod, paymentMethod === m.id && at.payMethodActive]} onPress={() => setPaymentMethod(m.id)}>
+                <Text style={{ fontSize: 24 }}>{m.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={at.payLabel}>{m.label}</Text>
+                  <Text style={at.paySub}>{m.sub}</Text>
+                </View>
+                <View style={[at.radio, paymentMethod === m.id && at.radioActive]}>
+                  {paymentMethod === m.id && <View style={at.radioDot} />}
+                </View>
+              </TouchableOpacity>
+            ))}
+            <View style={at.modalBtns}>
+              <TouchableOpacity style={at.cancelBtn} onPress={() => setShowPayment(false)}>
+                <Text style={at.cancelBtnTxt}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={at.confirmBtn} onPress={handlePay}>
+                <Text style={at.confirmBtnTxt}>Confirmar pago</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -117,6 +168,22 @@ const at = StyleSheet.create({
   sosBtn: { backgroundColor: Colors.dangerLight, borderColor: '#F7C1C1' },
   finishBtn: { margin: Spacing.md, marginTop: 0, backgroundColor: Colors.primary, borderRadius: Radii.lg, padding: 15, alignItems: 'center' },
   finishTxt: { fontSize: FontSize.md, fontWeight: '600', color: Colors.accent },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.xl, paddingBottom: 40 },
+  modalTitle: { fontSize: FontSize.xl, fontWeight: '600', color: Colors.textPrimary, marginBottom: 6, textAlign: 'center' },
+  modalSub: { fontSize: FontSize.base, color: Colors.textSecondary, textAlign: 'center', marginBottom: 20 },
+  payMethod: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.md, borderWidth: 0.5, borderColor: Colors.border, borderRadius: Radii.lg, marginBottom: 10 },
+  payMethodActive: { borderColor: Colors.primary, backgroundColor: Colors.background },
+  payLabel: { fontSize: FontSize.base, fontWeight: '500', color: Colors.textPrimary },
+  paySub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: Colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: Radii.lg, borderWidth: 0.5, borderColor: Colors.border, alignItems: 'center' },
+  cancelBtnTxt: { fontSize: FontSize.base, color: Colors.textSecondary },
+  confirmBtn: { flex: 2, paddingVertical: 14, borderRadius: Radii.lg, backgroundColor: Colors.primary, alignItems: 'center' },
+  confirmBtnTxt: { fontSize: FontSize.base, fontWeight: '600', color: Colors.accent },
 });
 
 const TAGS = ['Puntual', 'Amable', 'Conducción segura', 'Auto limpio', 'Ruta correcta'];
@@ -257,9 +324,9 @@ const hs = StyleSheet.create({
 
 const METHODS = [
   { id: '1', label: 'Efectivo', sub: 'Pago directo al conductor', icon: '💵' },
-  { id: '2', label: 'Visa ••••4521', sub: 'Vence 12/27', icon: '💳' },
+  { id: '2', label: 'PayPal', sub: 'Pago seguro en línea', icon: '🔵' },
   { id: '3', label: 'GO Wallet', sub: 'Saldo: $23.50', icon: '👜' },
-  { id: '4', label: 'Mercado Pago', sub: 'Cuenta vinculada', icon: '🔵' },
+  { id: '4', label: 'Mercado Pago', sub: 'Cuenta vinculada', icon: '🟡' },
 ];
 export const PaymentScreen = () => {
   const [selected, setSelected] = useState('1');
@@ -312,7 +379,7 @@ const ps = StyleSheet.create({
   progressTxt: { fontSize: FontSize.xs, color: Colors.textSecondary },
 });
 
-const MENU = [['Métodos de pago','Efectivo · Tarjeta · Wallet'],['Historial de viajes','Ver todos mis viajes'],['Seguridad','Contactos de emergencia · PIN'],['Notificaciones','Push · Email · SMS'],['Soporte','Chat en vivo · Ayuda'],['Acerca de GO','Versión 1.0.0']];
+const MENU = [['Métodos de pago','Efectivo · PayPal · Wallet'],['Historial de viajes','Ver todos mis viajes'],['Seguridad','Contactos de emergencia · PIN'],['Notificaciones','Push · Email · SMS'],['Soporte','Chat en vivo · Ayuda'],['Acerca de GO','Versión 1.0.0']];
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { user, logout, switchRole } = useAuth();
