@@ -1,15 +1,9 @@
 import * as WebBrowser from 'expo-web-browser';
 import { Alert } from 'react-native';
 
-const PAYPAL_CLIENT_ID = 'AX5WA8fPLd34lHDv5HU4Jf2zgYexjh7rEQ3tMiy2uSKCH86kW0aBWwSWDBj1lRRUJ2tLDyDpalA5n28r';
-const PAYPAL_BASE_URL = 'https://www.sandbox.paypal.com';
-
 export const payWithPayPal = async (amount: number, description: string): Promise<boolean> => {
   try {
-    const returnUrl = 'goapp://payment/success';
-    const cancelUrl = 'goapp://payment/cancel';
-
-    const paypalUrl = `${PAYPAL_BASE_URL}/cgi-bin/webscr?cmd=_xclick&business=sb-business@goapp.sv&amount=${amount.toFixed(2)}&currency_code=USD&item_name=${encodeURIComponent(description)}&return=${encodeURIComponent(returnUrl)}&cancel_return=${encodeURIComponent(cancelUrl)}`;
+    const paypalUrl = `https://www.paypal.me/goappsv/${amount.toFixed(2)}`;
 
     const result = await WebBrowser.openBrowserAsync(paypalUrl);
 
@@ -17,15 +11,23 @@ export const payWithPayPal = async (amount: number, description: string): Promis
       return false;
     }
 
-    return true;
+    return new Promise((resolve) => {
+      Alert.alert(
+        '¿Completaste el pago?',
+        `¿Confirmás que pagaste $${amount.toFixed(2)} por tu viaje GO?`,
+        [
+          { text: 'No', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Sí, pagué ✅', onPress: () => resolve(true) },
+        ]
+      );
+    });
   } catch (error) {
-    Alert.alert('Error', 'No se pudo abrir PayPal. Intenta de nuevo.');
+    Alert.alert('Error', 'No se pudo abrir PayPal. Puedes pagar en efectivo.');
     return false;
   }
 };
 
 export const getPaymentMethods = () => [
   { id: 'cash', label: 'Efectivo', sub: 'Pago directo al conductor', icon: '💵' },
-  { id: 'paypal', label: 'PayPal', sub: 'Pago seguro con PayPal', icon: '🔵' },
-  { id: 'card', label: 'Tarjeta de crédito/débito', sub: 'Visa, Mastercard', icon: '💳' },
+  { id: 'paypal', label: 'PayPal', sub: 'paypal.me/goappsv', icon: '🔵' },
 ];
