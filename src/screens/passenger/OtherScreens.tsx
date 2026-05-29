@@ -1,5 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, FlatList, Linking, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, FlatList, Image, Linking, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -59,7 +61,7 @@ export const ActiveTripScreen = ({ navigation }: any) => {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `🚗 Estoy en un viaje con GO Transport.\n📍 Mi ubicación: https://maps.google.com/?q=${passengerLocation.latitude},${passengerLocation.longitude}\n🚘 Conductor: Carlos Rivas\n🔢 Placa: P-1234\n⏰ Llegada estimada: 4 min`,
+        message: `🚗 Estoy en un viaje con GO Transport.\n📍 Mi ubicación: https://maps.google.com/?q=${passengerLocation.latitude},${passengerLocation.longitude}\n🚘 Conductor: Carlos Rivas\n🔢 Placa: P-1234`,
         title: 'Compartir mi ruta - GO',
       });
     } catch {}
@@ -70,16 +72,10 @@ export const ActiveTripScreen = ({ navigation }: any) => {
       { text: 'Llamar 911', style: 'destructive', onPress: () => Linking.openURL('tel:911') },
     ]);
   };
-
-  const handleFinish = () => setShowPayment(true);
-
   const handlePay = async () => {
     if (paymentMethod === 'paypal') {
       const success = await payWithPayPal(FARE, 'Viaje GO Transport - Carlos Rivas');
-      if (success) {
-        setShowPayment(false);
-        navigation.replace('RateTrip');
-      }
+      if (success) { setShowPayment(false); navigation.replace('RateTrip'); }
     } else {
       setShowPayment(false);
       navigation.replace('RateTrip');
@@ -111,35 +107,22 @@ export const ActiveTripScreen = ({ navigation }: any) => {
         <TouchableOpacity style={at.actionBtn} onPress={handleShare}><Text style={at.actionIcon}>📍</Text><Text style={at.actionTxt}>Compartir</Text></TouchableOpacity>
         <TouchableOpacity style={[at.actionBtn, at.sosBtn]} onPress={handleSOS}><Text style={at.actionIcon}>🆘</Text><Text style={[at.actionTxt, { color: Colors.danger, fontWeight: '700' }]}>SOS</Text></TouchableOpacity>
       </View>
-      <TouchableOpacity style={at.finishBtn} onPress={handleFinish}><Text style={at.finishTxt}>Finalizar viaje</Text></TouchableOpacity>
-
+      <TouchableOpacity style={at.finishBtn} onPress={() => setShowPayment(true)}><Text style={at.finishTxt}>Finalizar viaje</Text></TouchableOpacity>
       <Modal visible={showPayment} transparent animationType="slide">
         <View style={at.modalBg}>
           <View style={at.modalCard}>
             <Text style={at.modalTitle}>💳 Método de pago</Text>
-            <Text style={at.modalSub}>Total a pagar: <Text style={{ fontWeight: '700', color: Colors.primary }}>${FARE.toFixed(2)}</Text></Text>
-            {[
-              { id: 'cash', label: 'Efectivo', sub: 'Pagar al conductor', icon: '💵' },
-              { id: 'paypal', label: 'PayPal', sub: 'Pago seguro en línea', icon: '🔵' },
-            ].map(m => (
+            <Text style={at.modalSub}>Total: <Text style={{ fontWeight: '700', color: Colors.primary }}>${FARE.toFixed(2)}</Text></Text>
+            {[{ id: 'cash', label: 'Efectivo', sub: 'Pagar al conductor', icon: '💵' }, { id: 'paypal', label: 'PayPal', sub: 'paypal.me/goappsv', icon: '🔵' }].map(m => (
               <TouchableOpacity key={m.id} style={[at.payMethod, paymentMethod === m.id && at.payMethodActive]} onPress={() => setPaymentMethod(m.id)}>
                 <Text style={{ fontSize: 24 }}>{m.icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={at.payLabel}>{m.label}</Text>
-                  <Text style={at.paySub}>{m.sub}</Text>
-                </View>
-                <View style={[at.radio, paymentMethod === m.id && at.radioActive]}>
-                  {paymentMethod === m.id && <View style={at.radioDot} />}
-                </View>
+                <View style={{ flex: 1 }}><Text style={at.payLabel}>{m.label}</Text><Text style={at.paySub}>{m.sub}</Text></View>
+                <View style={[at.radio, paymentMethod === m.id && at.radioActive]}>{paymentMethod === m.id && <View style={at.radioDot} />}</View>
               </TouchableOpacity>
             ))}
             <View style={at.modalBtns}>
-              <TouchableOpacity style={at.cancelBtn} onPress={() => setShowPayment(false)}>
-                <Text style={at.cancelBtnTxt}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={at.confirmBtn} onPress={handlePay}>
-                <Text style={at.confirmBtnTxt}>Confirmar pago</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={at.cancelBtn} onPress={() => setShowPayment(false)}><Text style={at.cancelBtnTxt}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={at.confirmBtn} onPress={handlePay}><Text style={at.confirmBtnTxt}>Confirmar pago</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -324,7 +307,7 @@ const hs = StyleSheet.create({
 
 const METHODS = [
   { id: '1', label: 'Efectivo', sub: 'Pago directo al conductor', icon: '💵' },
-  { id: '2', label: 'PayPal', sub: 'Pago seguro en línea', icon: '🔵' },
+  { id: '2', label: 'PayPal', sub: 'paypal.me/goappsv', icon: '🔵' },
   { id: '3', label: 'GO Wallet', sub: 'Saldo: $23.50', icon: '👜' },
   { id: '4', label: 'Mercado Pago', sub: 'Cuenta vinculada', icon: '🟡' },
 ];
@@ -383,8 +366,20 @@ const MENU = [['Métodos de pago','Efectivo · PayPal · Wallet'],['Historial de
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { user, logout, switchRole } = useAuth();
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
   const isDriver = user?.role === 'driver';
+
+  useEffect(() => {
+    loadAvatar();
+  }, []);
+
+  const loadAvatar = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(`avatar_${user?.id}`);
+      if (saved) setAvatarUri(saved);
+    } catch {}
+  };
 
   const handleSwitchRole = () => {
     Alert.alert(
@@ -392,6 +387,26 @@ export const ProfileScreen = ({ navigation }: any) => {
       isDriver ? '¿Quieres cambiar al modo pasajero?' : '¿Quieres cambiar al modo conductor?',
       [{ text: 'Cancelar', style: 'cancel' }, { text: 'Cambiar', onPress: switchRole }]
     );
+  };
+
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const uri = result.assets[0].uri;
+      setAvatarUri(uri);
+      await AsyncStorage.setItem(`avatar_${user?.id}`, uri);
+      Alert.alert('✅ Foto actualizada');
+    }
   };
 
   return (
@@ -404,7 +419,16 @@ export const ProfileScreen = ({ navigation }: any) => {
       </View>
       <ScrollView contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 40 }}>
         <View style={prs.center}>
-          <View style={prs.av}><Text style={prs.avTxt}>{initials}</Text></View>
+          <TouchableOpacity onPress={handlePickImage} style={prs.avWrap}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={prs.avImg} />
+            ) : (
+              <View style={prs.av}><Text style={prs.avTxt}>{initials}</Text></View>
+            )}
+            <View style={prs.cameraBtn}>
+              <Text style={{ fontSize: 14 }}>📷</Text>
+            </View>
+          </TouchableOpacity>
           <Text style={prs.name}>{user?.name} {user?.lastName}</Text>
           <Text style={prs.contact}>{user?.phone}</Text>
           <Text style={prs.rating}>⭐ {(user?.rating ?? 5).toFixed(1)} · {user?.totalTrips ?? 0} viajes</Text>
@@ -452,8 +476,11 @@ const prs = StyleSheet.create({
   logo: { fontSize: FontSize.xxl, fontWeight: '700', color: Colors.accent, letterSpacing: -1 },
   logoutHdr: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.5)' },
   center: { alignItems: 'center', marginBottom: Spacing.xl },
-  av: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avWrap: { position: 'relative', marginBottom: 12 },
+  avImg: { width: 80, height: 80, borderRadius: 40 },
+  av: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   avTxt: { fontSize: 30, fontWeight: '700', color: Colors.primary },
+  cameraBtn: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
   name: { fontSize: FontSize.xl, fontWeight: '500', color: Colors.textPrimary, marginBottom: 4 },
   contact: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: 6 },
   rating: { fontSize: FontSize.base, color: Colors.textPrimary },
