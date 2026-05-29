@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, FontSize, Radii, Spacing } from '../../theme';
+import { Colors, FontSize, Radii, setDarkMode, Spacing } from '../../theme';
 
 export const SecurityScreen = ({ navigation }: any) => {
   const [pin, setPin] = useState('');
@@ -79,14 +80,39 @@ export const SecurityScreen = ({ navigation }: any) => {
 
 export const NotificationsScreen = ({ navigation }: any) => {
   const [notifs, setNotifs] = useState({ push: true, email: true, sms: false, tripUpdates: true, promotions: false, security: true });
+  const [darkMode, setDarkModeState] = useState(false);
   const toggle = (key: keyof typeof notifs) => setNotifs(p => ({ ...p, [key]: !p[key] }));
+
+  useEffect(() => {
+    AsyncStorage.getItem('darkMode').then(val => {
+      if (val === 'true') setDarkModeState(true);
+    });
+  }, []);
+
+  const handleDarkMode = async (val: boolean) => {
+    setDarkModeState(val);
+    setDarkMode(val);
+    await AsyncStorage.setItem('darkMode', val ? 'true' : 'false');
+    Alert.alert('Modo oscuro', val ? 'Modo oscuro activado ✅' : 'Modo claro activado ☀️');
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.back}>←</Text></TouchableOpacity>
-        <Text style={s.title}>Notificaciones</Text>
+        <Text style={s.title}>Notificaciones y Apariencia</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+        <Text style={s.sLabel}>Apariencia</Text>
+        <View style={s.card}>
+          <View style={s.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.switchLabel}>🌙 Modo oscuro</Text>
+              <Text style={s.switchSub}>Cambia la apariencia de la app</Text>
+            </View>
+            <Switch value={darkMode} onValueChange={handleDarkMode} trackColor={{ false: Colors.border, true: Colors.success }} thumbColor={Colors.white} />
+          </View>
+        </View>
         <Text style={s.sLabel}>Canales</Text>
         <View style={s.card}>
           {[['push','Notificaciones Push','Alertas en tu teléfono'],['email','Email','Recibos y actualizaciones'],['sms','SMS','Mensajes de texto']].map(([key, label, sub]) => (
@@ -118,7 +144,7 @@ export const SupportScreen = ({ navigation }: any) => {
   const [expanded, setExpanded] = useState<number | null>(null);
   const FAQ = [
     { q: '¿Cómo funciona GO?', a: 'GO conecta pasajeros con conductores. Tú propones el precio y los conductores cercanos pueden aceptar.' },
-    { q: '¿Cómo pago mi viaje?', a: 'Puedes pagar en efectivo, con tarjeta o usando GO Wallet.' },
+    { q: '¿Cómo pago mi viaje?', a: 'Puedes pagar en efectivo, con PayPal o usando GO Wallet.' },
     { q: '¿Qué hago si olvidé algo?', a: 'Ve a historial, selecciona el viaje y contacta al conductor.' },
     { q: '¿Cómo cancelo un viaje?', a: 'Puedes cancelar antes de que el conductor llegue.' },
     { q: '¿Es seguro GO?', a: 'Todos los conductores pasan verificación de identidad. Tienes botón SOS en cada viaje.' },
