@@ -1,13 +1,12 @@
-import * as Location from 'expo-location';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert, Linking, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
+import { getPendingTrips, acceptTrip, startTrip, completeTrip, updateDriverLocation, subscribeToNewTrips } from '../../services/tripService';
 import { sendLocalNotification } from '../../services/notificationService';
+import { Colors, FontSize, Spacing, Radii } from '../../theme';
 import { supabase } from '../../services/supabase';
-import { acceptTrip, completeTrip, getPendingTrips, startTrip, subscribeToNewTrips, updateDriverLocation } from '../../services/tripService';
-import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 const RequestCard = ({ req, onAccept, onDecline }: any) => {
   const timerAnim = useRef(new Animated.Value(1)).current;
@@ -43,7 +42,7 @@ const RequestCard = ({ req, onAccept, onDecline }: any) => {
         <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.info }]} /><Text style={s.routeTxt}>Ubicación del pasajero</Text></View>
         <View style={s.routeRow}><View style={[s.routeDot, { backgroundColor: Colors.danger }]} /><Text style={s.routeTxt}>{req.destination_address ?? 'Destino'}</Text></View>
       </View>
-      <Text style={s.cardMeta}>Tarifa ofrecida: ${req.fare?.toFixed(2)} · {req.vehicle_type ?? 'Auto'}</Text>
+      <Text style={s.cardMeta}>Tarifa: ${req.fare?.toFixed(2)} · {req.vehicle_type ?? 'Auto'}</Text>
       <View style={s.cardBtns}>
         <TouchableOpacity style={s.declineBtn} onPress={onDecline}><Text style={s.declineTxt}>Rechazar</Text></TouchableOpacity>
         <TouchableOpacity style={s.counterBtn} onPress={() => setShowCounter(true)}><Text style={s.counterTxt}>💬 Contraoferta</Text></TouchableOpacity>
@@ -78,9 +77,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-    };
+    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
   }, []);
 
   const toggleOnline = async () => {
@@ -92,11 +89,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
       setRequests(pending);
       channelRef.current = subscribeToNewTrips((newTrip) => {
         setRequests(prev => [newTrip, ...prev]);
-        sendLocalNotification(
-          '🚗 Nueva solicitud de viaje',
-          `${newTrip.passenger_name} necesita ir a ${newTrip.destination_address} · $${newTrip.fare?.toFixed(2)}`,
-          { tripId: newTrip.id }
-        );
+        sendLocalNotification('🚗 Nueva solicitud', `${newTrip.passenger_name} → ${newTrip.destination_address} · $${newTrip.fare?.toFixed(2)}`);
       });
     } else {
       setRequests([]);
@@ -106,14 +99,16 @@ export const DriverHomeScreen = ({ navigation }: any) => {
 
   const handleAccept = async (tripId: string) => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
       let driverLat = 13.6950;
       let driverLng = -89.2200;
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
-        driverLat = loc.coords.latitude;
-        driverLng = loc.coords.longitude;
-      }
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({});
+          driverLat = loc.coords.latitude;
+          driverLng = loc.coords.longitude;
+        }
+      } catch {}
       const trip = await acceptTrip(tripId, {
         driver_id: user?.id ?? 'demo-driver',
         driver_name: `${user?.name} ${user?.lastName}`,
@@ -124,7 +119,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
       setRequests([]);
       navigation.navigate('DriverActiveTrip', { trip });
     } catch {
-      Alert.alert('Error', 'No se pudo aceptar el viaje. Puede que otro conductor lo tomó primero.');
+      Alert.alert('Error', 'No se pudo aceptar el viaje.');
       setRequests(prev => prev.filter(r => r.id !== tripId));
     }
   };
@@ -164,58 +159,42 @@ export const DriverHomeScreen = ({ navigation }: any) => {
 };
 
 export const DriverActiveTripScreen = ({ navigation, route }: any) => {
-  const { user } = useAuth();
   const [phase, setPhase] = useState<'pickup'|'trip'>('pickup');
   const [rating, setRating] = useState(0);
   const [showRate, setShowRate] = useState(false);
-  const [driverLocation, setDriverLocation] = useState({ latitude: 13.6950, longitude: -89.2200 });
   const trip = route?.params?.trip;
   const locationIntervalRef = useRef<any>(null);
 
-  const passengerLocation = {
-    latitude: trip?.passenger_lat ?? 13.6929,
-    longitude: trip?.passenger_lng ?? -89.2182,
-  };
-  const destinationLocation = {
-    latitude: trip?.destination_lat ?? 13.6910,
-    longitude: trip?.destination_lng ?? -89.2250,
-  };
-
   useEffect(() => {
     startLocationUpdates();
-    return () => {
-      if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
-    };
+    return () => { if (locationIntervalRef.current) clearInterval(locationIntervalRef.current); };
   }, []);
 
   const startLocationUpdates = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === 'granted' && trip?.id) {
-      locationIntervalRef.current = setInterval(async () => {
-        const loc = await Location.getCurrentPositionAsync({});
-        setDriverLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-        await updateDriverLocation(trip.id, loc.coords.latitude, loc.coords.longitude);
-      }, 5000);
-    }
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted' && trip?.id) {
+        locationIntervalRef.current = setInterval(async () => {
+          const loc = await Location.getCurrentPositionAsync({});
+          await updateDriverLocation(trip.id, loc.coords.latitude, loc.coords.longitude);
+        }, 5000);
+      }
+    } catch {}
   };
 
   const handleCall = () => Linking.openURL(`tel:${trip?.passenger_phone ?? '+50370001111'}`);
   const handleNavigate = () => {
-    const dest = phase === 'pickup' ? passengerLocation : destinationLocation;
+    const dest = phase === 'pickup'
+      ? { latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182 }
+      : { latitude: trip?.destination_lat ?? 13.6910, longitude: trip?.destination_lng ?? -89.2250 };
     Linking.openURL(`https://maps.google.com/?daddr=${dest.latitude},${dest.longitude}`);
   };
   const handleStartTrip = async () => {
-    if (trip?.id) {
-      await startTrip(trip.id);
-      await sendLocalNotification('🚗 Viaje iniciado', 'El conductor ha iniciado el viaje hacia tu destino.');
-    }
+    if (trip?.id) await startTrip(trip.id);
     setPhase('trip');
   };
   const handleComplete = async () => {
-    if (trip?.id) {
-      await completeTrip(trip.id);
-      await sendLocalNotification('✅ Viaje completado', `Ganaste $${((trip?.fare ?? 5) * 0.9).toFixed(2)} en este viaje.`);
-    }
+    if (trip?.id) await completeTrip(trip.id);
     setShowRate(true);
   };
 
@@ -250,19 +229,15 @@ export const DriverActiveTripScreen = ({ navigation, route }: any) => {
           <View style={s.farePill}><Text style={s.farePillTxt}>${trip?.fare?.toFixed(2) ?? '5.00'}</Text></View>
         </View>
       </View>
-      <MapView style={{ flex: 1 }} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: 13.6940, longitude: -89.2191, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
-        <Marker coordinate={driverLocation} title="Tu posición"><View><Text style={{ fontSize: 28 }}>🚗</Text></View></Marker>
-        <Marker coordinate={passengerLocation} title="Pasajero" pinColor={Colors.info} />
-        {phase === 'trip' && <Marker coordinate={destinationLocation} title="Destino" pinColor={Colors.danger} />}
-        <Polyline
-          coordinates={phase === 'pickup' ? [driverLocation, passengerLocation] : [passengerLocation, destinationLocation]}
-          strokeColor={phase === 'pickup' ? Colors.info : Colors.success}
-          strokeWidth={3}
-          lineDashPattern={[8, 4]}
-        />
-      </MapView>
+      <View style={s.mapPlaceholder}>
+        <Text style={{ fontSize: 48 }}>🗺️</Text>
+        <Text style={s.mapTxt}>{phase === 'pickup' ? 'En camino al pasajero' : `Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
+        <TouchableOpacity style={s.navBtn} onPress={handleNavigate}>
+          <Text style={s.navBtnTxt}>🧭 Abrir en Google Maps</Text>
+        </TouchableOpacity>
+      </View>
       <View style={s.bottomBar}>
-        <Text style={s.pickupHint}>{phase === 'pickup' ? `📍 Dirígete a: ${trip?.destination_address ?? 'Pasajero'}` : `🏁 Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
+        <Text style={s.pickupHint}>{phase === 'pickup' ? `📍 Recoge a: ${trip?.passenger_name ?? 'Pasajero'}` : `🏁 Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
         <View style={s.actionRow}>
           <TouchableOpacity style={s.actionBtn} onPress={handleCall}><Text style={{ fontSize: 20 }}>📞</Text></TouchableOpacity>
           <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: trip?.id ?? 'demo-trip-001', otherName: trip?.passenger_name ?? 'Pasajero' })}><Text style={{ fontSize: 20 }}>💬</Text></TouchableOpacity>
@@ -345,6 +320,10 @@ const s = StyleSheet.create({
   tripPassSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   farePill: { backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   farePillTxt: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
+  mapPlaceholder: { flex: 1, backgroundColor: '#E8EAE6', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  mapTxt: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: '500', textAlign: 'center', paddingHorizontal: 20 },
+  navBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radii.lg },
+  navBtnTxt: { fontSize: FontSize.base, fontWeight: '600', color: Colors.accent },
   bottomBar: { padding: Spacing.md, paddingBottom: 28, backgroundColor: Colors.white, borderTopWidth: 0.5, borderColor: Colors.border },
   pickupHint: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: 8 },
   actionRow: { flexDirection: 'row', gap: 8 },

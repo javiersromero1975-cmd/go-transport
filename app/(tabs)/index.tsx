@@ -1,10 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationIndependentTree } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Text } from 'react-native';
 import { AuthProvider, useAuth } from '../../src/context/AuthContext';
+import { ThemeProvider } from '../../src/context/ThemeContext';
 import { LoginScreen } from '../../src/screens/auth/LoginScreen';
 import { RegisterScreen } from '../../src/screens/auth/RegisterScreen';
 import { ChatScreen } from '../../src/screens/chat/ChatScreen';
@@ -20,18 +19,19 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const PassengerTabs = () => (
-  <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: Colors.primary, tabBarInactiveTintColor: Colors.textTertiary, tabBarStyle: { borderTopWidth: 0.5, borderTopColor: Colors.border, height: 60, paddingBottom: 8 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '500' } }}>
-    <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Inicio', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🏠</Text> }} />
-    <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarLabel: 'Historial', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🕐</Text> }} />
-    <Tab.Screen name="Payment" component={PaymentScreen} options={{ tabBarLabel: 'Pagos', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>💳</Text> }} />
-    <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>👤</Text> }} />
+  <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { backgroundColor: Colors.white, borderTopColor: Colors.border }, tabBarActiveTintColor: Colors.primary, tabBarInactiveTintColor: Colors.textTertiary }}>
+    <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Inicio', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏠</Text> }} />
+    <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarLabel: 'Viajes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🕐</Text> }} />
+    <Tab.Screen name="Payment" component={PaymentScreen} options={{ tabBarLabel: 'Pagos', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>💳</Text> }} />
+    <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>👤</Text> }} />
   </Tab.Navigator>
 );
 
 const DriverTabs = () => (
-  <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: Colors.primary, tabBarInactiveTintColor: Colors.textTertiary, tabBarStyle: { borderTopWidth: 0.5, borderTopColor: Colors.border, height: 60, paddingBottom: 8 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '500' } }}>
-    <Tab.Screen name="DriverHome" component={DriverHomeScreen} options={{ tabBarLabel: 'Inicio', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🚗</Text> }} />
-    <Tab.Screen name="DriverProfile" component={ProfileScreen} options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>👤</Text> }} />
+  <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { backgroundColor: Colors.primary, borderTopColor: Colors.border }, tabBarActiveTintColor: Colors.accent, tabBarInactiveTintColor: 'rgba(255,255,255,0.4)' }}>
+    <Tab.Screen name="DriverHome" component={DriverHomeScreen} options={{ tabBarLabel: 'Solicitudes', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🚗</Text> }} />
+    <Tab.Screen name="DriverHistory" component={HistoryScreen} options={{ tabBarLabel: 'Historial', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🕐</Text> }} />
+    <Tab.Screen name="DriverProfile" component={ProfileScreen} options={{ tabBarLabel: 'Perfil', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>👤</Text> }} />
   </Tab.Navigator>
 );
 
@@ -43,8 +43,6 @@ const PassengerNavigator = () => (
     <Stack.Screen name="ActiveTrip" component={ActiveTripScreen} />
     <Stack.Screen name="RateTrip" component={RateTripScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
-    <Stack.Screen name="History" component={HistoryScreen} />
-    <Stack.Screen name="Payment" component={PaymentScreen} />
     <Stack.Screen name="Security" component={SecurityScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Support" component={SupportScreen} />
@@ -59,8 +57,6 @@ const DriverNavigator = () => (
     <Stack.Screen name="DriverTabs" component={DriverTabs} />
     <Stack.Screen name="DriverActiveTrip" component={DriverActiveTripScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
-    <Stack.Screen name="History" component={HistoryScreen} />
-    <Stack.Screen name="Payment" component={PaymentScreen} />
     <Stack.Screen name="Security" component={SecurityScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Support" component={SupportScreen} />
@@ -70,40 +66,28 @@ const DriverNavigator = () => (
   </Stack.Navigator>
 );
 
-function Navigator() {
+const AppNavigator = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
-  if (isLoading) {
-    return <View style={s.loading}><Text style={s.logo}>GO</Text></View>;
+  if (isLoading) return null;
+  if (!isAuthenticated) {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+      </Stack.Navigator>
+    );
   }
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        <>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
-      ) : user?.role === 'driver' ? (
-        <Stack.Screen name="DriverNav" component={DriverNavigator} />
-      ) : (
-        <Stack.Screen name="PassengerNav" component={PassengerNavigator} />
-      )}
-    </Stack.Navigator>
-  );
-}
-
-const s = StyleSheet.create({
-  loading: { flex: 1, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  logo: { fontSize: 56, fontWeight: '700', color: '#F5C842', letterSpacing: -3 },
-});
+  return user?.role === 'driver' ? <DriverNavigator /> : <PassengerNavigator />;
+};
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <NavigationIndependentTree>
-          <Navigator />
-        </NavigationIndependentTree>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <NavigationIndependentTree>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+      </ThemeProvider>
+    </NavigationIndependentTree>
   );
 }

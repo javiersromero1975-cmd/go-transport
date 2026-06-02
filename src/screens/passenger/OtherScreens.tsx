@@ -1,12 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, FlatList, Image, Linking, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, TextInput, FlatList, Alert, Linking, Share, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { payWithPayPal } from '../../services/paypalService';
-import { Colors, FontSize, Radii, Spacing } from '../../theme';
+import { Colors, Spacing, Radii, FontSize } from '../../theme';
 
 export const SearchingScreen = ({ navigation }: any) => {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -53,15 +52,13 @@ const ss = StyleSheet.create({
 export const ActiveTripScreen = ({ navigation }: any) => {
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const driverLocation = { latitude: 13.6950, longitude: -89.2200 };
-  const passengerLocation = { latitude: 13.6929, longitude: -89.2182 };
   const FARE = 5.00;
 
   const handleCall = () => Linking.openURL('tel:+50370000000');
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `🚗 Estoy en un viaje con GO Transport.\n📍 Mi ubicación: https://maps.google.com/?q=${passengerLocation.latitude},${passengerLocation.longitude}\n🚘 Conductor: Carlos Rivas\n🔢 Placa: P-1234`,
+        message: `🚗 Estoy en un viaje con GO Transport.\n🚘 Conductor: Carlos Rivas\n🔢 Placa: P-1234`,
         title: 'Compartir mi ruta - GO',
       });
     } catch {}
@@ -96,11 +93,11 @@ export const ActiveTripScreen = ({ navigation }: any) => {
         </View>
         <View style={at.eta}><Text style={at.etaTxt}>Llega en 4 min · 2.3 km</Text></View>
       </View>
-      <MapView style={at.map} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: 13.6940, longitude: -89.2191, latitudeDelta: 0.008, longitudeDelta: 0.008 }} showsUserLocation>
-        <Marker coordinate={driverLocation} title="Conductor"><View><Text style={{ fontSize: 24 }}>🚗</Text></View></Marker>
-        <Marker coordinate={passengerLocation} title="Tu ubicación" pinColor={Colors.info} />
-        <Polyline coordinates={[driverLocation, passengerLocation]} strokeColor={Colors.info} strokeWidth={3} lineDashPattern={[8, 4]} />
-      </MapView>
+      <View style={at.mapPlaceholder}>
+        <Text style={{ fontSize: 48 }}>🗺️</Text>
+        <Text style={at.mapTxt}>Ruta en tiempo real</Text>
+        <Text style={at.mapSub}>San Salvador, El Salvador</Text>
+      </View>
       <View style={at.actionBar}>
         <TouchableOpacity style={at.actionBtn} onPress={handleCall}><Text style={at.actionIcon}>📞</Text><Text style={at.actionTxt}>Llamar</Text></TouchableOpacity>
         <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: 'Carlos Rivas' })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
@@ -143,7 +140,9 @@ const at = StyleSheet.create({
   plateTxt: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.primary, letterSpacing: 1 },
   eta: { backgroundColor: 'rgba(245,200,66,0.15)', borderWidth: 0.5, borderColor: Colors.accent, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 10 },
   etaTxt: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '600' },
-  map: { flex: 1 },
+  mapPlaceholder: { flex: 1, backgroundColor: '#E8EAE6', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  mapTxt: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: '500' },
+  mapSub: { fontSize: FontSize.sm, color: Colors.textTertiary },
   actionBar: { flexDirection: 'row', gap: 8, padding: Spacing.md, borderTopWidth: 0.5, borderColor: Colors.border },
   actionBtn: { flex: 1, paddingVertical: 10, borderRadius: Radii.md, borderWidth: 0.5, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.background },
   actionIcon: { fontSize: 20, marginBottom: 2 },
@@ -370,9 +369,7 @@ export const ProfileScreen = ({ navigation }: any) => {
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
   const isDriver = user?.role === 'driver';
 
-  useEffect(() => {
-    loadAvatar();
-  }, []);
+  useEffect(() => { loadAvatar(); }, []);
 
   const loadAvatar = async () => {
     try {
@@ -391,16 +388,8 @@ export const ProfileScreen = ({ navigation }: any) => {
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
+    if (status !== 'granted') { Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.5 });
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
       setAvatarUri(uri);
@@ -420,14 +409,8 @@ export const ProfileScreen = ({ navigation }: any) => {
       <ScrollView contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 40 }}>
         <View style={prs.center}>
           <TouchableOpacity onPress={handlePickImage} style={prs.avWrap}>
-            {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={prs.avImg} />
-            ) : (
-              <View style={prs.av}><Text style={prs.avTxt}>{initials}</Text></View>
-            )}
-            <View style={prs.cameraBtn}>
-              <Text style={{ fontSize: 14 }}>📷</Text>
-            </View>
+            {avatarUri ? <Image source={{ uri: avatarUri }} style={prs.avImg} /> : <View style={prs.av}><Text style={prs.avTxt}>{initials}</Text></View>}
+            <View style={prs.cameraBtn}><Text style={{ fontSize: 14 }}>📷</Text></View>
           </TouchableOpacity>
           <Text style={prs.name}>{user?.name} {user?.lastName}</Text>
           <Text style={prs.contact}>{user?.phone}</Text>
