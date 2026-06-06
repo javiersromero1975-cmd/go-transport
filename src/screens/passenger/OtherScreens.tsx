@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { payWithPayPal } from '../../services/paypalService';
 import { Colors, Spacing, Radii, FontSize } from '../../theme';
 
-export const SearchingScreen = ({ navigation }: any) => {
+export const SearchingScreen = ({ navigation, route }: any) => {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     const anim = Animated.loop(Animated.sequence([
@@ -26,10 +26,10 @@ export const SearchingScreen = ({ navigation }: any) => {
         </Animated.View>
         <Text style={ss.title}>Buscando conductor...</Text>
         <Text style={ss.sub}>Los conductores cerca pueden aceptar tu oferta</Text>
-        <TouchableOpacity style={ss.simulateBtn} onPress={() => navigation.replace('ActiveTrip')}>
+        <TouchableOpacity style={ss.simulateBtn} onPress={() => navigation.replace('ActiveTrip', { fare: route?.params?.fare ?? 5 })}>
           <Text style={ss.simulateTxt}>Simular: conductor encontrado →</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={ss.cancelBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={ss.cancelBtn} onPress={() => { route?.params?.onCancel?.(); navigation.goBack(); }}>
           <Text style={ss.cancelTxt}>Cancelar búsqueda</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -49,16 +49,17 @@ const ss = StyleSheet.create({
   cancelTxt: { color: Colors.white, fontSize: FontSize.base },
 });
 
-export const ActiveTripScreen = ({ navigation }: any) => {
+export const ActiveTripScreen = ({ navigation, route }: any) => {
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const FARE = 5.00;
+  const FARE = route?.params?.fare ?? 5.00;
+  const driverName = route?.params?.driverName ?? 'Carlos Rivas';
 
   const handleCall = () => Linking.openURL('tel:+50370000000');
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `🚗 Estoy en un viaje con GO Transport.\n🚘 Conductor: Carlos Rivas\n🔢 Placa: P-1234`,
+        message: `🚗 Estoy en un viaje con GO Transport.\n🚘 Conductor: ${driverName}\n🔢 Placa: P-1234`,
         title: 'Compartir mi ruta - GO',
       });
     } catch {}
@@ -71,11 +72,11 @@ export const ActiveTripScreen = ({ navigation }: any) => {
   };
   const handlePay = async () => {
     if (paymentMethod === 'paypal') {
-      const success = await payWithPayPal(FARE, 'Viaje GO Transport - Carlos Rivas');
-      if (success) { setShowPayment(false); navigation.replace('RateTrip'); }
+      const success = await payWithPayPal(FARE, `Viaje GO Transport - ${driverName}`);
+      if (success) { setShowPayment(false); navigation.replace('RateTrip', { fare: FARE, driverName }); }
     } else {
       setShowPayment(false);
-      navigation.replace('RateTrip');
+      navigation.replace('RateTrip', { fare: FARE, driverName });
     }
   };
 
@@ -84,9 +85,9 @@ export const ActiveTripScreen = ({ navigation }: any) => {
       <View style={at.header}>
         <Text style={at.status}>Conductor en camino · 4 min</Text>
         <View style={at.driverRow}>
-          <View style={at.driverAv}><Text style={at.driverAvTxt}>CR</Text></View>
+          <View style={at.driverAv}><Text style={at.driverAvTxt}>{driverName[0]}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={at.driverName}>Carlos Rivas</Text>
+            <Text style={at.driverName}>{driverName}</Text>
             <Text style={at.driverSub}>Toyota Corolla · Plateado</Text>
           </View>
           <View style={at.plate}><Text style={at.plateTxt}>P-1234</Text></View>
@@ -100,7 +101,7 @@ export const ActiveTripScreen = ({ navigation }: any) => {
       </View>
       <View style={at.actionBar}>
         <TouchableOpacity style={at.actionBtn} onPress={handleCall}><Text style={at.actionIcon}>📞</Text><Text style={at.actionTxt}>Llamar</Text></TouchableOpacity>
-        <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: 'Carlos Rivas' })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
+        <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: driverName })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
         <TouchableOpacity style={at.actionBtn} onPress={handleShare}><Text style={at.actionIcon}>📍</Text><Text style={at.actionTxt}>Compartir</Text></TouchableOpacity>
         <TouchableOpacity style={[at.actionBtn, at.sosBtn]} onPress={handleSOS}><Text style={at.actionIcon}>🆘</Text><Text style={[at.actionTxt, { color: Colors.danger, fontWeight: '700' }]}>SOS</Text></TouchableOpacity>
       </View>
@@ -169,18 +170,20 @@ const at = StyleSheet.create({
 });
 
 const TAGS = ['Puntual', 'Amable', 'Conducción segura', 'Auto limpio', 'Ruta correcta'];
-export const RateTripScreen = ({ navigation }: any) => {
+export const RateTripScreen = ({ navigation, route }: any) => {
   const [rating, setRating] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
+  const FARE = route?.params?.fare ?? 5.00;
+  const driverName = route?.params?.driverName ?? 'Carlos Rivas';
   const toggleTag = (t: string) => setTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
   return (
     <SafeAreaView style={rt.safe}>
       <ScrollView contentContainerStyle={rt.scroll} keyboardShouldPersistTaps="handled">
         <View style={rt.center}>
-          <View style={rt.av}><Text style={rt.avTxt}>CR</Text></View>
+          <View style={rt.av}><Text style={rt.avTxt}>{driverName[0]}</Text></View>
           <Text style={rt.title}>¿Cómo estuvo tu viaje?</Text>
-          <Text style={rt.sub}>Carlos Rivas · Toyota Corolla</Text>
+          <Text style={rt.sub}>{driverName} · Toyota Corolla</Text>
         </View>
         <View style={rt.starsRow}>
           {[1,2,3,4,5].map(n => <TouchableOpacity key={n} onPress={() => setRating(n)}><Text style={[rt.star, n <= rating && rt.starActive]}>★</Text></TouchableOpacity>)}
@@ -197,7 +200,7 @@ export const RateTripScreen = ({ navigation }: any) => {
         <View style={rt.fareCard}>
           <View style={rt.fareRow}><Text style={rt.fareLabel}>Distancia</Text><Text style={rt.fareVal}>2.3 km</Text></View>
           <View style={rt.fareRow}><Text style={rt.fareLabel}>Duración</Text><Text style={rt.fareVal}>12 min</Text></View>
-          <View style={[rt.fareRow, rt.fareTotal]}><Text style={rt.fareTotalLabel}>Total pagado</Text><Text style={rt.fareTotalVal}>$5.00</Text></View>
+          <View style={[rt.fareRow, rt.fareTotal]}><Text style={rt.fareTotalLabel}>Total pagado</Text><Text style={rt.fareTotalVal}>${FARE.toFixed(2)}</Text></View>
         </View>
         <TouchableOpacity style={rt.btnPrimary} onPress={() => { if (!rating) { Alert.alert('Selecciona una calificación'); return; } navigation.navigate('MainTabs'); }}>
           <Text style={rt.btnPrimaryTxt}>Enviar calificación</Text>
