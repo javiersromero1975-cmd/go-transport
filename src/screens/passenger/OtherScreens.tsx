@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, TextInput, FlatList, Alert, Linking, Share, Modal, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { payWithPayPal } from '../../services/paypalService';
-import { Colors, Spacing, Radii, FontSize } from '../../theme';
+import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 export const SearchingScreen = ({ navigation, route }: any) => {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -58,10 +58,7 @@ export const ActiveTripScreen = ({ navigation, route }: any) => {
   const handleCall = () => Linking.openURL('tel:+50370000000');
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `🚗 Estoy en un viaje con GO Transport.\n🚘 Conductor: ${driverName}\n🔢 Placa: P-1234`,
-        title: 'Compartir mi ruta - GO',
-      });
+      await Share.share({ message: `🚗 Estoy en un viaje con GO Transport.\n🚘 Conductor: ${driverName}\n🔢 Placa: P-1234`, title: 'Compartir mi ruta - GO' });
     } catch {}
   };
   const handleSOS = () => {
@@ -179,34 +176,47 @@ export const RateTripScreen = ({ navigation, route }: any) => {
   const toggleTag = (t: string) => setTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
   return (
     <SafeAreaView style={rt.safe}>
-      <ScrollView contentContainerStyle={rt.scroll} keyboardShouldPersistTaps="handled">
-        <View style={rt.center}>
-          <View style={rt.av}><Text style={rt.avTxt}>{driverName[0]}</Text></View>
-          <Text style={rt.title}>¿Cómo estuvo tu viaje?</Text>
-          <Text style={rt.sub}>{driverName} · Toyota Corolla</Text>
-        </View>
-        <View style={rt.starsRow}>
-          {[1,2,3,4,5].map(n => <TouchableOpacity key={n} onPress={() => setRating(n)}><Text style={[rt.star, n <= rating && rt.starActive]}>★</Text></TouchableOpacity>)}
-        </View>
-        {rating > 0 && (
-          <View style={rt.tagsWrap}>
-            <Text style={rt.tagsLabel}>¿Qué estuvo bien?</Text>
-            <View style={rt.tagsRow}>
-              {TAGS.map(t => <TouchableOpacity key={t} style={[rt.tag, tags.includes(t) && rt.tagActive]} onPress={() => toggleTag(t)}><Text style={[rt.tagTxt, tags.includes(t) && rt.tagTxtActive]}>{t}</Text></TouchableOpacity>)}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView contentContainerStyle={rt.scroll} keyboardShouldPersistTaps="handled">
+            <View style={rt.center}>
+              <View style={rt.av}><Text style={rt.avTxt}>{driverName[0]}</Text></View>
+              <Text style={rt.title}>¿Cómo estuvo tu viaje?</Text>
+              <Text style={rt.sub}>{driverName} · Toyota Corolla</Text>
             </View>
-          </View>
-        )}
-        <TextInput style={rt.commentBox} placeholder="Comentario opcional..." placeholderTextColor={Colors.textTertiary} value={comment} onChangeText={setComment} multiline numberOfLines={3} textAlignVertical="top" />
-        <View style={rt.fareCard}>
-          <View style={rt.fareRow}><Text style={rt.fareLabel}>Distancia</Text><Text style={rt.fareVal}>2.3 km</Text></View>
-          <View style={rt.fareRow}><Text style={rt.fareLabel}>Duración</Text><Text style={rt.fareVal}>12 min</Text></View>
-          <View style={[rt.fareRow, rt.fareTotal]}><Text style={rt.fareTotalLabel}>Total pagado</Text><Text style={rt.fareTotalVal}>${FARE.toFixed(2)}</Text></View>
-        </View>
-        <TouchableOpacity style={rt.btnPrimary} onPress={() => { if (!rating) { Alert.alert('Selecciona una calificación'); return; } navigation.navigate('MainTabs'); }}>
-          <Text style={rt.btnPrimaryTxt}>Enviar calificación</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={rt.btnSecondary} onPress={() => navigation.navigate('MainTabs')}><Text style={rt.btnSecondaryTxt}>Omitir</Text></TouchableOpacity>
-      </ScrollView>
+            <View style={rt.starsRow}>
+              {[1,2,3,4,5].map(n => <TouchableOpacity key={n} onPress={() => setRating(n)}><Text style={[rt.star, n <= rating && rt.starActive]}>★</Text></TouchableOpacity>)}
+            </View>
+            {rating > 0 && (
+              <View style={rt.tagsWrap}>
+                <Text style={rt.tagsLabel}>¿Qué estuvo bien?</Text>
+                <View style={rt.tagsRow}>
+                  {TAGS.map(t => <TouchableOpacity key={t} style={[rt.tag, tags.includes(t) && rt.tagActive]} onPress={() => toggleTag(t)}><Text style={[rt.tagTxt, tags.includes(t) && rt.tagTxtActive]}>{t}</Text></TouchableOpacity>)}
+                </View>
+              </View>
+            )}
+            <TextInput
+              style={rt.commentBox}
+              placeholder="Comentario opcional..."
+              placeholderTextColor={Colors.textTertiary}
+              value={comment}
+              onChangeText={setComment}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+            <View style={rt.fareCard}>
+              <View style={rt.fareRow}><Text style={rt.fareLabel}>Distancia</Text><Text style={rt.fareVal}>2.3 km</Text></View>
+              <View style={rt.fareRow}><Text style={rt.fareLabel}>Duración</Text><Text style={rt.fareVal}>12 min</Text></View>
+              <View style={[rt.fareRow, rt.fareTotal]}><Text style={rt.fareTotalLabel}>Total pagado</Text><Text style={rt.fareTotalVal}>${FARE.toFixed(2)}</Text></View>
+            </View>
+            <TouchableOpacity style={rt.btnPrimary} onPress={() => { if (!rating) { Alert.alert('Selecciona una calificación'); return; } navigation.navigate('MainTabs'); }}>
+              <Text style={rt.btnPrimaryTxt}>Enviar calificación</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={rt.btnSecondary} onPress={() => navigation.navigate('MainTabs')}><Text style={rt.btnSecondaryTxt}>Omitir</Text></TouchableOpacity>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
