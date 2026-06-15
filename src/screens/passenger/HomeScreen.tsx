@@ -15,7 +15,8 @@ export const HomeScreen = ({ navigation }: any) => {
   const [vehicle, setVehicle] = useState('Auto');
   const [destination, setDestination] = useState('');
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [location, setLocation] = useState({ latitude: 13.6929, longitude: -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+  const [pickupAddress, setPickupAddress] = useState('Mi ubicación actual');
+  const [location, setLocation] = useState({ latitude: 13.6929, longitude: -89.2182 });
   const [searching, setSearching] = useState(false);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
 
@@ -26,9 +27,19 @@ export const HomeScreen = ({ navigation }: any) => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({});
-        setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+        setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       }
     } catch {}
+  };
+
+  const handleSelectPickup = () => {
+    navigation.navigate('SearchDestination', {
+      placeholder: 'Buscar dirección de recogida...',
+      onSelect: (place: { address: string; latitude: number; longitude: number }) => {
+        setPickupAddress(place.address);
+        setLocation({ latitude: place.latitude, longitude: place.longitude });
+      }
+    });
   };
 
   const handleSelectDestination = () => {
@@ -103,13 +114,16 @@ export const HomeScreen = ({ navigation }: any) => {
       <View style={s.sheet}>
         <View style={s.handle} />
         <Text style={s.sheetLabel}>¿A dónde vas?</Text>
-        <View style={s.inputRow}>
+        <TouchableOpacity style={s.inputRow} onPress={handleSelectPickup}>
           <View style={[s.dot, { backgroundColor: Colors.info }]} />
-          <Text style={s.inputTxt}>Mi ubicación actual</Text>
-        </View>
+          <Text style={[s.inputTxt, pickupAddress === 'Mi ubicación actual' && { color: Colors.textSecondary }]} numberOfLines={1}>
+            {pickupAddress}
+          </Text>
+          <Text style={{ fontSize: 12, color: Colors.textTertiary }}>✏️</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={s.inputRow} onPress={handleSelectDestination}>
           <View style={[s.dot, { backgroundColor: Colors.danger }]} />
-          <Text style={[s.inputTxt, !destination && { color: Colors.textTertiary }]}>
+          <Text style={[s.inputTxt, !destination && { color: Colors.textTertiary }]} numberOfLines={1}>
             {destination || 'Buscar destino...'}
           </Text>
           {destination ? <Text style={{ fontSize: 16, color: Colors.textTertiary }}>✕</Text> : <Text style={{ fontSize: 14 }}>🔍</Text>}
