@@ -8,6 +8,7 @@ import { LoginScreen } from '../../src/screens/auth/LoginScreen';
 import { RegisterScreen } from '../../src/screens/auth/RegisterScreen';
 import { ChatScreen } from '../../src/screens/chat/ChatScreen';
 import { DriverActiveTripScreen, DriverHomeScreen } from '../../src/screens/driver/DriverScreens';
+import { VerificationScreen } from '../../src/screens/driver/VerificationScreen';
 import { AboutScreen, NotificationsScreen, SecurityScreen, SupportScreen } from '../../src/screens/passenger/ExtraScreens';
 import { HomeScreen } from '../../src/screens/passenger/HomeScreen';
 import { PrivacyScreen, TermsScreen } from '../../src/screens/passenger/LegalScreens';
@@ -56,6 +57,7 @@ const DriverNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="DriverTabs" component={DriverTabs} />
     <Stack.Screen name="DriverActiveTrip" component={DriverActiveTripScreen} />
+    <Stack.Screen name="Verification" component={VerificationScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="Security" component={SecurityScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />

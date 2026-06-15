@@ -195,16 +195,7 @@ export const RateTripScreen = ({ navigation, route }: any) => {
                 </View>
               </View>
             )}
-            <TextInput
-              style={rt.commentBox}
-              placeholder="Comentario opcional..."
-              placeholderTextColor={Colors.textTertiary}
-              value={comment}
-              onChangeText={setComment}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
+            <TextInput style={rt.commentBox} placeholder="Comentario opcional..." placeholderTextColor={Colors.textTertiary} value={comment} onChangeText={setComment} multiline numberOfLines={3} textAlignVertical="top" />
             <View style={rt.fareCard}>
               <View style={rt.fareRow}><Text style={rt.fareLabel}>Distancia</Text><Text style={rt.fareVal}>2.3 km</Text></View>
               <View style={rt.fareRow}><Text style={rt.fareLabel}>Duración</Text><Text style={rt.fareVal}>12 min</Text></View>
@@ -374,13 +365,28 @@ const ps = StyleSheet.create({
   progressTxt: { fontSize: FontSize.xs, color: Colors.textSecondary },
 });
 
-const MENU = [['Métodos de pago','Efectivo · PayPal · Wallet'],['Historial de viajes','Ver todos mis viajes'],['Seguridad','Contactos de emergencia · PIN'],['Notificaciones','Push · Email · SMS'],['Soporte','Chat en vivo · Ayuda'],['Acerca de GO','Versión 1.0.0']];
-
 export const ProfileScreen = ({ navigation }: any) => {
   const { user, logout, switchRole } = useAuth();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
   const isDriver = user?.role === 'driver';
+
+  const MENU = isDriver ? [
+    ['Verificar cuenta', 'Sube tus documentos como conductor'],
+    ['Historial de viajes', 'Ver todos mis viajes'],
+    ['Métodos de pago', 'Efectivo · PayPal · Wallet'],
+    ['Seguridad', 'Contactos de emergencia · PIN'],
+    ['Notificaciones', 'Push · Email · SMS'],
+    ['Soporte', 'Chat en vivo · Ayuda'],
+    ['Acerca de GO', 'Versión 1.0.0'],
+  ] : [
+    ['Historial de viajes', 'Ver todos mis viajes'],
+    ['Métodos de pago', 'Efectivo · PayPal · Wallet'],
+    ['Seguridad', 'Contactos de emergencia · PIN'],
+    ['Notificaciones', 'Push · Email · SMS'],
+    ['Soporte', 'Chat en vivo · Ayuda'],
+    ['Acerca de GO', 'Versión 1.0.0'],
+  ];
 
   useEffect(() => { loadAvatar(); }, []);
 
@@ -447,6 +453,7 @@ export const ProfileScreen = ({ navigation }: any) => {
         <View style={prs.menuCard}>
           {MENU.map(([label, sub], i) => (
             <TouchableOpacity key={label} style={[prs.menuRow, i < MENU.length - 1 && prs.menuBorder]} onPress={() => {
+              if (label === 'Verificar cuenta') navigation.navigate('Verification');
               if (label === 'Historial de viajes') navigation.navigate('History');
               if (label === 'Métodos de pago') navigation.navigate('Payment');
               if (label === 'Seguridad') navigation.navigate('Security');
