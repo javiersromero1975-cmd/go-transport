@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { sendLocalNotification } from '../../services/notificationService';
@@ -229,13 +230,13 @@ export const DriverActiveTripScreen = ({ navigation, route }: any) => {
           <View style={s.farePill}><Text style={s.farePillTxt}>${trip?.fare?.toFixed(2) ?? '5.00'}</Text></View>
         </View>
       </View>
-      <View style={s.mapPlaceholder}>
-        <Text style={{ fontSize: 48 }}>🗺️</Text>
-        <Text style={s.mapTxt}>{phase === 'pickup' ? 'En camino al pasajero' : `Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
-        <TouchableOpacity style={s.navBtn} onPress={handleNavigate}>
-          <Text style={s.navBtnTxt}>🧭 Abrir en Google Maps</Text>
-        </TouchableOpacity>
-      </View>
+     <MapView style={s.map} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
+        <Marker coordinate={{ latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182 }} title={trip?.passenger_name ?? 'Pasajero'} pinColor={Colors.info} />
+        <Marker coordinate={{ latitude: trip?.destination_lat ?? 13.6910, longitude: trip?.destination_lng ?? -89.2250 }} title={trip?.destination_address ?? 'Destino'} pinColor={Colors.danger} />
+      </MapView>
+      <TouchableOpacity style={s.navBtnFloat} onPress={handleNavigate}>
+        <Text style={s.navBtnTxt}>🧭 Abrir en Google Maps</Text>
+      </TouchableOpacity>
       <View style={s.bottomBar}>
         <Text style={s.pickupHint}>{phase === 'pickup' ? `📍 Recoge a: ${trip?.passenger_name ?? 'Pasajero'}` : `🏁 Destino: ${trip?.destination_address ?? 'Destino'}`}</Text>
         <View style={s.actionRow}>
@@ -320,7 +321,8 @@ const s = StyleSheet.create({
   tripPassSub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   farePill: { backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   farePillTxt: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
-  mapPlaceholder: { flex: 1, backgroundColor: '#E8EAE6', alignItems: 'center', justifyContent: 'center', gap: 12 },
+ map: { flex: 1 },
+  navBtnFloat: { position: 'absolute', bottom: 16, alignSelf: 'center', backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radii.lg },
   mapTxt: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: '500', textAlign: 'center', paddingHorizontal: 20 },
   navBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Radii.lg },
   navBtnTxt: { fontSize: FontSize.base, fontWeight: '600', color: Colors.accent },
