@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { payWithPayPal } from '../../services/paypalService';
@@ -92,11 +93,9 @@ export const ActiveTripScreen = ({ navigation, route }: any) => {
         </View>
         <View style={at.eta}><Text style={at.etaTxt}>Llega en 4 min · 2.3 km</Text></View>
       </View>
-      <View style={at.mapPlaceholder}>
-        <Text style={{ fontSize: 48 }}>🗺️</Text>
-        <Text style={at.mapTxt}>Ruta en tiempo real</Text>
-        <Text style={at.mapSub}>San Salvador, El Salvador</Text>
-      </View>
+     <MapView style={at.map} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: 13.6929, longitude: -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
+        <Marker coordinate={{ latitude: 13.6929, longitude: -89.2182 }} title={driverName} pinColor={Colors.accent} />
+      </MapView>
       <View style={at.actionBar}>
         <TouchableOpacity style={at.actionBtn} onPress={handleCall}><Text style={at.actionIcon}>📞</Text><Text style={at.actionTxt}>Llamar</Text></TouchableOpacity>
         <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: driverName })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
@@ -139,7 +138,7 @@ const at = StyleSheet.create({
   plateTxt: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.primary, letterSpacing: 1 },
   eta: { backgroundColor: 'rgba(245,200,66,0.15)', borderWidth: 0.5, borderColor: Colors.accent, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 10 },
   etaTxt: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '600' },
-  mapPlaceholder: { flex: 1, backgroundColor: '#E8EAE6', alignItems: 'center', justifyContent: 'center', gap: 8 },
+ map: { flex: 1 },
   mapTxt: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: '500' },
   mapSub: { fontSize: FontSize.sm, color: Colors.textTertiary },
   actionBar: { flexDirection: 'row', gap: 8, padding: Spacing.md, borderTopWidth: 0.5, borderColor: Colors.border },

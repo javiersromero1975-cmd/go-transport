@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../services/supabase';
@@ -16,7 +17,7 @@ export const HomeScreen = ({ navigation }: any) => {
   const [destination, setDestination] = useState('');
   const [destCoords, setDestCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [pickupAddress, setPickupAddress] = useState('Mi ubicación actual');
-  const [location, setLocation] = useState({ latitude: 13.6929, longitude: -89.2182 });
+  const [location, setLocation] = useState({ latitude: 13.6929, longitude: -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 });
   const [searching, setSearching] = useState(false);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
 
@@ -27,7 +28,7 @@ export const HomeScreen = ({ navigation }: any) => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({});
-        setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
       }
     } catch {}
   };
@@ -37,7 +38,7 @@ export const HomeScreen = ({ navigation }: any) => {
       placeholder: 'Buscar dirección de recogida...',
       onSelect: (place: { address: string; latitude: number; longitude: number }) => {
         setPickupAddress(place.address);
-        setLocation({ latitude: place.latitude, longitude: place.longitude });
+        setLocation({ latitude: place.latitude, longitude: place.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
       }
     });
   };
@@ -106,11 +107,10 @@ export const HomeScreen = ({ navigation }: any) => {
           <Text style={s.avTxt}>{initials}</Text>
         </TouchableOpacity>
       </View>
-      <View style={s.mapPlaceholder}>
-        <Text style={{ fontSize: 48 }}>🗺️</Text>
-        <Text style={s.mapTxt}>Mapa disponible próximamente</Text>
-        <Text style={s.mapSub}>San Salvador, El Salvador</Text>
-      </View>
+      <MapView style={s.map} provider={PROVIDER_DEFAULT} region={location} showsUserLocation showsMyLocationButton>
+        <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} title="Tu ubicación" />
+        {destCoords && <Marker coordinate={destCoords} title={destination} pinColor={Colors.danger} />}
+      </MapView>
       <View style={s.sheet}>
         <View style={s.handle} />
         <Text style={s.sheetLabel}>¿A dónde vas?</Text>
@@ -163,9 +163,7 @@ const s = StyleSheet.create({
   hsub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
   av: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   avTxt: { fontSize: 13, fontWeight: '700', color: Colors.primary },
-  mapPlaceholder: { flex: 1, backgroundColor: '#E8EAE6', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  mapTxt: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: '500' },
-  mapSub: { fontSize: FontSize.sm, color: Colors.textTertiary },
+  map: { flex: 1 },
   sheet: { backgroundColor: Colors.white, borderTopLeftRadius: Radii.xl, borderTopRightRadius: Radii.xl, padding: Spacing.xl, paddingBottom: 32, borderTopWidth: 0.5, borderColor: Colors.border },
   handle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 14 },
   sheetLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },

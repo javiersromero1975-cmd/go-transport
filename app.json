@@ -20,7 +20,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.milo987.GOapp"
+      "package": "com.milo987.GOapp",
+      "config": {
+      "googleMaps": {
+        "apiKey": "AIzaSyCABVASK1gEU1Fa0VUGHoGiOQclgVU0buk"
+      }
+    },
     },
     "web": {
       "output": "static",
