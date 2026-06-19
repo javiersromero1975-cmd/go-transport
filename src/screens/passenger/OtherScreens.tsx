@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { payWithPayPal } from '../../services/paypalService';
+import { supabase } from '../../services/supabase';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 export const SearchingScreen = ({ navigation, route }: any) => {
@@ -243,45 +244,94 @@ const rt = StyleSheet.create({
   btnSecondaryTxt: { fontSize: FontSize.base, color: Colors.textPrimary },
 });
 
-const DEMO_TRIPS = [
-  { id: '1', route: 'Col. Escalón → Metrocentro', driver: 'Carlos Rivas', rating: 5, km: '2.3', amount: '$5.00', date: 'Hoy, 9:30', status: 'completed' },
-  { id: '2', route: 'Zona Rosa → Aeropuerto', driver: 'Ana García', rating: 4, km: '18.0', amount: '$12.00', date: 'Ayer, 14:15', status: 'completed' },
-  { id: '3', route: 'USAM → Plaza Mundo', driver: 'Roberto Díaz', rating: 5, km: '5.1', amount: '$4.50', date: '02 Abr', status: 'completed' },
-  { id: '4', route: 'Soyapango → Centro', driver: 'Cancelado', rating: 0, km: '0', amount: '$0.00', date: '01 Abr', status: 'cancelled' },
-  { id: '5', route: 'Lomas → Galerías', driver: 'Mario López', rating: 4, km: '7.8', amount: '$7.00', date: '30 Mar', status: 'completed' },
-];
 export const HistoryScreen = () => {
+  const { user } = useAuth();
+  const [trips, setTrips] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
-  const filtered = filter === 'all' ? DEMO_TRIPS : DEMO_TRIPS.filter(t => t.status === filter);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadTrips(); }, []);
+
+  const loadTrips = async () => {
+    try {
+      const column = user?.role === 'driver' ? 'driver_id' : 'passenger_id';
+      const { data, error } = await supabase
+        .from('viajes')
+        .select('*')
+        .eq(column, user?.id ?? '1')
+        .order('created_at', { ascending: false });
+      if (!error && data) setTrips(data);
+    } catch {} finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = filter === 'all' ? trips : trips.filter(t => t.status === filter);
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const today = new Date();
+    const diff = today.getDate() - date.getDate();
+    if (diff === 0) return `Hoy, ${date.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' })}`;
+    if (diff === 1) return `Ayer, ${date.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' })}`;
+    return date.toLocaleDateString('es-SV', { day: '2-digit', month: 'short' });
+  };
+
   return (
     <SafeAreaView style={hs.safe} edges={['top']}>
       <View style={hs.header}><Text style={hs.logo}>GO</Text><Text style={hs.hsub}>Mis viajes</Text></View>
       <View style={hs.filters}>
-        {[['all','Todos'],['completed','Completados'],['cancelled','Cancelados']].map(([v,l]) => (
+        {[['all','Todos'],['completed','Completados'],['cancelled','Cancelados'],['pending','Pendientes']].map(([v,l]) => (
           <TouchableOpacity key={v} style={[hs.fChip, filter === v && hs.fChipActive]} onPress={() => setFilter(v)}>
             <Text style={[hs.fChipTxt, filter === v && hs.fChipTxtActive]}>{l}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <FlatList data={filtered} keyExtractor={i => i.id} contentContainerStyle={{ padding: Spacing.lg }}
-        ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: Colors.border }} />}
-        renderItem={({ item }) => (
-          <View style={hs.item}>
-            <View style={[hs.icon, item.status === 'cancelled' && hs.iconCancelled]}><Text style={{ fontSize: 18 }}>{item.status === 'cancelled' ? '✕' : '🚗'}</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={hs.route} numberOfLines={1}>{item.route}</Text>
-              <Text style={hs.itemSub}>{item.driver}{item.rating ? ` · ⭐ ${item.rating}` : ''} · {item.km} km</Text>
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={i => i.id}
+          contentContainerStyle={{ padding: Spacing.lg, flexGrow: 1 }}
+          ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: Colors.border }} />}
+          ListEmptyComponent={
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 }}>
+              <Text style={{ fontSize: 40, marginBottom: 12 }}>🚗</Text>
+              <Text style={{ fontSize: FontSize.base, color: Colors.textSecondary }}>No hay viajes aún</Text>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={hs.amount}>{item.amount}</Text>
-              <Text style={hs.date}>{item.date}</Text>
-              <View style={[hs.badge, item.status === 'cancelled' && hs.badgeDanger]}>
-                <Text style={[hs.badgeTxt, item.status === 'cancelled' && hs.badgeDangerTxt]}>{item.status === 'completed' ? 'Completado' : 'Cancelado'}</Text>
+          }
+          renderItem={({ item }) => (
+            <View style={hs.item}>
+              <View style={[hs.icon, item.status === 'cancelled' && hs.iconCancelled]}>
+                <Text style={{ fontSize: 18 }}>{item.status === 'cancelled' ? '✕' : item.status === 'pending' ? '⏳' : '🚗'}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={hs.route} numberOfLines={1}>
+                  {user?.role === 'driver'
+                    ? `${item.passenger_name ?? 'Pasajero'} → ${item.destination_address ?? 'Destino'}`
+                    : item.destination_address ?? 'Destino'}
+                </Text>
+                <Text style={hs.itemSub}>
+                  {user?.role === 'driver' ? item.passenger_name : item.driver_name ?? 'Sin conductor'} · ${item.fare?.toFixed(2) ?? '0.00'}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={hs.amount}>${item.fare?.toFixed(2) ?? '0.00'}</Text>
+                <Text style={hs.date}>{formatDate(item.created_at)}</Text>
+                <View style={[hs.badge, item.status === 'cancelled' && hs.badgeDanger, item.status === 'pending' && hs.badgePending]}>
+                  <Text style={[hs.badgeTxt, item.status === 'cancelled' && hs.badgeDangerTxt, item.status === 'pending' && hs.badgePendingTxt]}>
+                    {item.status === 'completed' ? 'Completado' : item.status === 'cancelled' ? 'Cancelado' : item.status === 'pending' ? 'Pendiente' : item.status}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -290,10 +340,10 @@ const hs = StyleSheet.create({
   header: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
   logo: { fontSize: FontSize.xxl, fontWeight: '700', color: Colors.accent, letterSpacing: -1 },
   hsub: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
-  filters: { flexDirection: 'row', gap: 8, padding: Spacing.lg, borderBottomWidth: 0.5, borderColor: Colors.border },
-  fChip: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: Radii.full, borderWidth: 0.5, borderColor: Colors.border },
+  filters: { flexDirection: 'row', gap: 6, padding: Spacing.lg, borderBottomWidth: 0.5, borderColor: Colors.border },
+  fChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radii.full, borderWidth: 0.5, borderColor: Colors.border },
   fChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
-  fChipTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '500' },
+  fChipTxt: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: '500' },
   fChipTxtActive: { color: Colors.accent },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   icon: { width: 42, height: 42, borderRadius: 12, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
@@ -306,6 +356,8 @@ const hs = StyleSheet.create({
   badgeTxt: { fontSize: 11, fontWeight: '500', color: '#27500A' },
   badgeDanger: { backgroundColor: Colors.dangerLight },
   badgeDangerTxt: { color: Colors.danger },
+  badgePending: { backgroundColor: '#FFF3E0' },
+  badgePendingTxt: { color: '#E65100' },
 });
 
 const METHODS = [

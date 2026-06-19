@@ -1,12 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert, Linking, TextInput, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { getPendingTrips, acceptTrip, startTrip, completeTrip, updateDriverLocation, subscribeToNewTrips } from '../../services/tripService';
 import { sendLocalNotification } from '../../services/notificationService';
-import { Colors, FontSize, Spacing, Radii } from '../../theme';
 import { supabase } from '../../services/supabase';
+import { acceptTrip, cancelTrip, completeTrip, getPendingTrips, startTrip, subscribeToNewTrips, updateDriverLocation } from '../../services/tripService';
+import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 const RequestCard = ({ req, onAccept, onDecline }: any) => {
   const timerAnim = useRef(new Animated.Value(1)).current;
@@ -144,7 +144,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
         {requests.map(r => (
           <RequestCard key={r.id} req={r}
             onAccept={() => handleAccept(r.id)}
-            onDecline={() => setRequests(p => p.filter(x => x.id !== r.id))}
+            onDecline={async () => { await cancelTrip(r.id); setRequests(p => p.filter(x => x.id !== r.id)); }}
           />
         ))}
         {(!isOnline || requests.length === 0) && (
