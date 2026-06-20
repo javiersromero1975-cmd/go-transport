@@ -100,7 +100,7 @@ export const subscribeToTrip = (tripId: string, onUpdate: (trip: any) => void) =
 
 export const subscribeToNewTrips = (onNewTrip: (trip: any) => void) => {
   const channel = supabase
-    .channel('new-trips')
+    .channel(`new-trips-${Date.now()}`)
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
