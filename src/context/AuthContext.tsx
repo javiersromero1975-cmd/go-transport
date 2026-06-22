@@ -17,6 +17,7 @@ export interface User {
   vehiclePlate?: string;
   vehicleColor?: string;
   isOnline?: boolean;
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {
@@ -41,7 +42,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadStoredUser = async () => {
     try {
       const stored = await AsyncStorage.getItem('go_user');
-      if (stored) setUser(JSON.parse(stored));
+      if (stored) {
+        const parsedUser = JSON.parse(stored);
+        setUser(parsedUser);
+        if (parsedUser?.id && parsedUser?.role) {
+          const { data } = await supabase
+            .from('usuarios')
+            .select('*')
+            .eq('id', parsedUser.id)
+            .single();
+          if (data) {
+            const refreshedUser: User = {
+              id: data.id,
+              name: data.name,
+              lastName: data.last_name,
+              phone: data.phone,
+              email: data.email,
+              role: data.role,
+              rating: data.rating ?? 5,
+              totalTrips: data.total_trips ?? 0,
+              vehicleModel: data.vehicle_model,
+              vehiclePlate: data.vehicle_plate,
+              isOnline: data.is_online,
+             isAdmin: data.is_admin === true,
+            };
+            setUser(refreshedUser);
+            await AsyncStorage.setItem('go_user', JSON.stringify(refreshedUser));
+          }
+        }
+      }
     } finally { setIsLoading(false); }
   };
 
@@ -83,6 +112,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         vehicleModel: data.vehicle_model,
         vehiclePlate: data.vehicle_plate,
         isOnline: data.is_online,
+      isAdmin: data.is_admin === true,
       };
       await AsyncStorage.setItem('go_user', JSON.stringify(loggedUser));
       setUser(loggedUser);

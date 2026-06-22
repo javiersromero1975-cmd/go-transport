@@ -4,10 +4,12 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text } from 'react-native';
 import { AuthProvider, useAuth } from '../../src/context/AuthContext';
 import { ThemeProvider } from '../../src/context/ThemeContext';
+import { AdminScreen } from '../../src/screens/admin/AdminScreen';
 import { LoginScreen } from '../../src/screens/auth/LoginScreen';
 import { RegisterScreen } from '../../src/screens/auth/RegisterScreen';
 import { ChatScreen } from '../../src/screens/chat/ChatScreen';
 import { DriverActiveTripScreen, DriverHomeScreen } from '../../src/screens/driver/DriverScreens';
+import { MembershipScreen } from '../../src/screens/driver/MembershipScreen';
 import { VerificationScreen } from '../../src/screens/driver/VerificationScreen';
 import { AboutScreen, NotificationsScreen, SecurityScreen, SupportScreen } from '../../src/screens/passenger/ExtraScreens';
 import { HomeScreen } from '../../src/screens/passenger/HomeScreen';
@@ -50,6 +52,7 @@ const PassengerNavigator = () => (
     <Stack.Screen name="About" component={AboutScreen} />
     <Stack.Screen name="Terms" component={TermsScreen} />
     <Stack.Screen name="Privacy" component={PrivacyScreen} />
+    <Stack.Screen name="Admin" component={AdminScreen} />
   </Stack.Navigator>
 );
 
@@ -58,6 +61,8 @@ const DriverNavigator = () => (
     <Stack.Screen name="DriverTabs" component={DriverTabs} />
     <Stack.Screen name="DriverActiveTrip" component={DriverActiveTripScreen} />
     <Stack.Screen name="Verification" component={VerificationScreen} />
+    <Stack.Screen name="Membership" component={MembershipScreen} />
+    <Stack.Screen name="Admin" component={AdminScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="Security" component={SecurityScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />

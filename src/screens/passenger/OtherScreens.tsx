@@ -421,9 +421,12 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
   const isDriver = user?.role === 'driver';
+  const isAdmin = (user as any)?.isAdmin === true;
+  console.log('DEBUG2:', JSON.stringify(user));
 
   const MENU = isDriver ? [
     ['Verificar cuenta', 'Sube tus documentos como conductor'],
+    ['Recargar membresía', 'Activa tu acceso para recibir viajes'],
     ['Historial de viajes', 'Ver todos mis viajes'],
     ['Métodos de pago', 'Efectivo · PayPal · Wallet'],
     ['Seguridad', 'Contactos de emergencia · PIN'],
@@ -438,6 +441,7 @@ export const ProfileScreen = ({ navigation }: any) => {
     ['Soporte', 'Chat en vivo · Ayuda'],
     ['Acerca de GO', 'Versión 1.0.0'],
   ];
+  if (isAdmin) MENU.push(['Panel de administrador', 'Aprobar pagos en efectivo']);
 
   useEffect(() => { loadAvatar(); }, []);
 
@@ -505,6 +509,8 @@ export const ProfileScreen = ({ navigation }: any) => {
           {MENU.map(([label, sub], i) => (
             <TouchableOpacity key={label} style={[prs.menuRow, i < MENU.length - 1 && prs.menuBorder]} onPress={() => {
               if (label === 'Verificar cuenta') navigation.navigate('Verification');
+              if (label === 'Recargar membresía') navigation.navigate('Membership');
+              if (label === 'Panel de administrador') navigation.navigate('Admin');
               if (label === 'Historial de viajes') navigation.navigate('History');
               if (label === 'Métodos de pago') navigation.navigate('Payment');
               if (label === 'Seguridad') navigation.navigate('Security');

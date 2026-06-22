@@ -83,6 +83,25 @@ export const DriverHomeScreen = ({ navigation }: any) => {
 
   const toggleOnline = async () => {
     const next = !isOnline;
+    if (next) {
+      const { data } = await supabase
+        .from('usuarios')
+        .select('membership_expires_at')
+        .eq('id', user?.id)
+        .single();
+      const expired = !data?.membership_expires_at || new Date(data.membership_expires_at) <= new Date();
+      if (expired) {
+        Alert.alert(
+          '⏳ Membresía vencida',
+          'Necesitas recargar tu membresía para recibir viajes.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Recargar ahora', onPress: () => navigation.navigate('Membership') },
+          ]
+        );
+        return;
+      }
+    }
     setIsOnline(next);
     updateUser({ isOnline: next });
     if (next) {
