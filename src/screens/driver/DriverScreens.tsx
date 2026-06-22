@@ -86,10 +86,10 @@ export const DriverHomeScreen = ({ navigation }: any) => {
     if (next) {
       const { data } = await supabase
         .from('usuarios')
-        .select('membership_expires_at')
+        .select('membership_expires_at, pending_cash')
         .eq('id', user?.id)
         .single();
-      const expired = !data?.membership_expires_at || new Date(data.membership_expires_at) <= new Date();
+      const expired = !data?.membership_expires_at || new Date(data.membership_expires_at) <= new Date() || data?.pending_cash === 'true';
       if (expired) {
         Alert.alert(
           '⏳ Membresía vencida',

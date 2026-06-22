@@ -25,7 +25,7 @@ export const MembershipScreen = ({ navigation }: any) => {
     try {
       const { data } = await supabase
         .from('usuarios')
-        .select('membership_expires_at, membership_status')
+        .select('membership_expires_at, pending_cash')
         .eq('id', user?.id)
         .single();
       if (data?.membership_expires_at) setCurrentExpiry(data.membership_expires_at);
@@ -48,7 +48,7 @@ export const MembershipScreen = ({ navigation }: any) => {
         .update({
           membership_expires_at: expiresAt.toISOString(),
           membership_plan: plan.id,
-          membership_status: method === 'cash' ? 'pending_cash' : 'active',
+          pending_cash: method === 'cash' ? 'true' : 'false',
         })
         .eq('id', user?.id);
 

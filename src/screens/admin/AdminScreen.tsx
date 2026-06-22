@@ -19,8 +19,8 @@ export const AdminScreen = ({ navigation }: any) => {
     try {
       const { data } = await supabase
         .from('usuarios')
-        .select('id, name, lastName, phone, membership_plan, membership_expires_at, membership_status')
-        .eq('membership_status', 'pending_cash');
+        .select('id, name, last_name, phone, membership_plan, membership_expires_at, pending_cash')
+        .eq('pending_cash', 'true');
       setPending(data ?? []);
     } catch {} finally {
       setLoading(false);
@@ -35,7 +35,7 @@ export const AdminScreen = ({ navigation }: any) => {
 
   const approvePayment = async (userId: string) => {
     try {
-      await supabase.from('usuarios').update({ membership_status: 'active' }).eq('id', userId);
+      await supabase.from('usuarios').update({ pending_cash: 'false' }).eq('id', userId);
       Alert.alert('✅ Pago confirmado', 'La membresía quedó activa.');
       loadPending();
     } catch {
@@ -45,7 +45,7 @@ export const AdminScreen = ({ navigation }: any) => {
 
   const rejectPayment = async (userId: string) => {
     try {
-      await supabase.from('usuarios').update({ membership_status: 'inactive', membership_expires_at: null }).eq('id', userId);
+      await supabase.from('usuarios').update({ pending_cash: 'false', membership_expires_at: null }).eq('id', userId);
       Alert.alert('❌ Pago rechazado');
       loadPending();
     } catch {
@@ -105,7 +105,7 @@ export const AdminScreen = ({ navigation }: any) => {
           }
           renderItem={({ item }) => (
             <View style={s.card}>
-              <Text style={s.cardName}>{item.name} {item.lastName}</Text>
+              <Text style={s.cardName}>{item.name} {item.last_name}</Text>
               <Text style={s.cardSub}>{item.phone}</Text>
               <Text style={s.cardSub}>Plan: {item.membership_plan} · Vence: {item.membership_expires_at ? new Date(item.membership_expires_at).toLocaleDateString('es-SV') : '-'}</Text>
               <View style={s.cardBtns}>
