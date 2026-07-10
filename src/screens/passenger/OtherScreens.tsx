@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { getRoute } from '../../services/directionsService';
@@ -63,6 +63,28 @@ const ss = StyleSheet.create({
   const destLng = route?.params?.destLng ?? -89.2250;
   const destAddress = route?.params?.destAddress ?? 'Destino';
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const tripId = route?.params?.tripId;
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(
+    route?.params?.driverLat ? { latitude: route.params.driverLat, longitude: route.params.driverLng } : null
+  );
+
+  useEffect(() => {
+    if (!tripId) return;
+    const channel = supabase
+      .channel(`driver-location-${tripId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'viajes',
+        filter: `id=eq.${tripId}`,
+      }, (payload) => {
+        if (payload.new.driver_lat && payload.new.driver_lng) {
+          setDriverLocation({ latitude: payload.new.driver_lat, longitude: payload.new.driver_lng });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [tripId]);
 
   useEffect(() => {
     getRoute({ latitude: passengerLat, longitude: passengerLng }, { latitude: destLat, longitude: destLng })
@@ -117,6 +139,9 @@ const ss = StyleSheet.create({
           longitudeDelta: Math.abs(passengerLng - destLng) + 0.02,
         }}
       >
+        <Marker coordinate={{ latitude: passengerLat, longitude: passengerLng }} title="📍 Tu ubicación" pinColor={Colors.info} />
+        <Marker coordinate={{ latitude: destLat, longitude: destLng }} title={`🏁 ${destAddress}`} pinColor={Colors.danger} />
+        {driverLocation && <Marker coordinate={driverLocation} title={`🚗 ${driverName}`} pinColor={Colors.accent} />}
         <Polyline
           coordinates={routeCoords.length > 0 ? routeCoords : [
             { latitude: passengerLat, longitude: passengerLng },
