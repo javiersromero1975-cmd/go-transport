@@ -1,13 +1,13 @@
 import axios from 'axios';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput, TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput, TouchableOpacity,
+  View,
 } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
@@ -56,11 +56,11 @@ export const SearchDestinationScreen = ({ navigation, route }: any) => {
     navigation.goBack();
   };
 
-  const RECIENTES = [
-    { id: 'r1', name: 'Metrocentro', sub: 'San Salvador' },
-    { id: 'r2', name: 'Aeropuerto Internacional', sub: 'San Luis Talpa' },
-    { id: 'r3', name: 'Plaza Mundo', sub: 'Soyapango' },
-    { id: 'r4', name: 'Galerías Escalón', sub: 'San Salvador' },
+const RECIENTES = [
+    { id: 'r1', name: 'Metrocentro', sub: 'San Salvador', lat: 13.6929, lng: -89.2182 },
+    { id: 'r2', name: 'Aeropuerto Internacional', sub: 'San Luis Talpa', lat: 13.4409, lng: -89.0556 },
+    { id: 'r3', name: 'Plaza Mundo', sub: 'Soyapango', lat: 13.7058, lng: -89.1517 },
+    { id: 'r4', name: 'Galerías Escalón', sub: 'San Salvador', lat: 13.7011, lng: -89.2289 },
   ];
 
   return (
@@ -100,7 +100,7 @@ export const SearchDestinationScreen = ({ navigation, route }: any) => {
           {RECIENTES.map(r => (
             <TouchableOpacity key={r.id} style={s.recentItem} onPress={() => {
               if (route.params?.onSelect) {
-                route.params.onSelect({ address: r.name, latitude: 13.6929, longitude: -89.2182 });
+               route.params.onSelect({ address: r.name, latitude: r.lat, longitude: r.lng });
               }
               navigation.goBack();
             }}>

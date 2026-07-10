@@ -80,6 +80,11 @@ export const HomeScreen = ({ navigation }: any) => {
             driverPhone: updatedTrip.driver_phone,
             driverLat: updatedTrip.driver_lat,
             driverLng: updatedTrip.driver_lng,
+            passengerLat: location.latitude,
+            passengerLng: location.longitude,
+            destLat: destCoords?.latitude ?? 13.6929,
+            destLng: destCoords?.longitude ?? -89.2182,
+            destAddress: destination,
           });
         }
       });

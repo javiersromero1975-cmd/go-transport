@@ -2,9 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { getRoute } from '../../services/directionsService';
 import { payWithPayPal } from '../../services/paypalService';
 import { supabase } from '../../services/supabase';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
@@ -51,11 +52,24 @@ const ss = StyleSheet.create({
   cancelTxt: { color: Colors.white, fontSize: FontSize.base },
 });
 
-export const ActiveTripScreen = ({ navigation, route }: any) => {
+ export const ActiveTripScreen = ({ navigation, route }: any) => {
   const [showPayment, setShowPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const FARE = route?.params?.fare ?? 5.00;
   const driverName = route?.params?.driverName ?? 'Carlos Rivas';
+  const passengerLat = route?.params?.passengerLat ?? 13.6929;
+  const passengerLng = route?.params?.passengerLng ?? -89.2182;
+  const destLat = route?.params?.destLat ?? 13.6910;
+  const destLng = route?.params?.destLng ?? -89.2250;
+  const destAddress = route?.params?.destAddress ?? 'Destino';
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+
+  useEffect(() => {
+    getRoute({ latitude: passengerLat, longitude: passengerLng }, { latitude: destLat, longitude: destLng })
+      .then(setRouteCoords);
+  }, []);
+
+  useEffect(() => { console.log('DEBUG ROUTE LENGTH:', routeCoords.length); }, [routeCoords]);
 
   const handleCall = () => Linking.openURL('tel:+50370000000');
   const handleShare = async () => {
@@ -93,12 +107,28 @@ export const ActiveTripScreen = ({ navigation, route }: any) => {
         </View>
         <View style={at.eta}><Text style={at.etaTxt}>Llega en 4 min · 2.3 km</Text></View>
       </View>
-     <MapView style={at.map} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: 13.6929, longitude: -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
-        <Marker coordinate={{ latitude: 13.6929, longitude: -89.2182 }} title={driverName} pinColor={Colors.accent} />
+     <MapView
+        style={at.map}
+        provider={PROVIDER_DEFAULT}
+        initialRegion={{
+          latitude: (passengerLat + destLat) / 2,
+          longitude: (passengerLng + destLng) / 2,
+          latitudeDelta: Math.abs(passengerLat - destLat) + 0.02,
+          longitudeDelta: Math.abs(passengerLng - destLng) + 0.02,
+        }}
+      >
+        <Polyline
+          coordinates={routeCoords.length > 0 ? routeCoords : [
+            { latitude: passengerLat, longitude: passengerLng },
+            { latitude: destLat, longitude: destLng },
+          ]}
+          strokeColor={Colors.primary}
+          strokeWidth={4}
+        />
       </MapView>
       <View style={at.actionBar}>
         <TouchableOpacity style={at.actionBtn} onPress={handleCall}><Text style={at.actionIcon}>📞</Text><Text style={at.actionTxt}>Llamar</Text></TouchableOpacity>
-        <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: 'demo-trip-001', otherName: driverName })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
+        <TouchableOpacity style={at.actionBtn} onPress={() => navigation.navigate('Chat', { viajeId: route?.params?.tripId ?? 'demo-trip-001', otherName: driverName })}><Text style={at.actionIcon}>💬</Text><Text style={at.actionTxt}>Chat</Text></TouchableOpacity>
         <TouchableOpacity style={at.actionBtn} onPress={handleShare}><Text style={at.actionIcon}>📍</Text><Text style={at.actionTxt}>Compartir</Text></TouchableOpacity>
         <TouchableOpacity style={[at.actionBtn, at.sosBtn]} onPress={handleSOS}><Text style={at.actionIcon}>🆘</Text><Text style={[at.actionTxt, { color: Colors.danger, fontWeight: '700' }]}>SOS</Text></TouchableOpacity>
       </View>

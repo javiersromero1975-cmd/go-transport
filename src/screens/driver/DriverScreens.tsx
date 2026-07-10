@@ -1,9 +1,10 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { getRoute } from '../../services/directionsService';
 import { sendLocalNotification } from '../../services/notificationService';
 import { supabase } from '../../services/supabase';
 import { acceptTrip, cancelTrip, completeTrip, getPendingTrips, startTrip, subscribeToNewTrips, updateDriverLocation } from '../../services/tripService';
@@ -84,12 +85,14 @@ export const DriverHomeScreen = ({ navigation }: any) => {
   const toggleOnline = async () => {
     const next = !isOnline;
     if (next) {
+      console.log('DEBUG USER ID:', user?.id);
       const { data } = await supabase
         .from('usuarios')
         .select('membership_expires_at, pending_cash')
         .eq('id', user?.id)
         .single();
       const expired = !data?.membership_expires_at || new Date(data.membership_expires_at) <= new Date() || data?.pending_cash === 'true';
+      console.log('DEBUG MEMBERSHIP:', JSON.stringify(data), expired);
       if (expired) {
         Alert.alert(
           '⏳ Membresía vencida',
@@ -138,7 +141,8 @@ export const DriverHomeScreen = ({ navigation }: any) => {
       });
       setRequests([]);
       navigation.navigate('DriverActiveTrip', { trip });
-    } catch {
+    } catch (err: any) {
+      console.log('ACCEPT ERROR:', err?.message, JSON.stringify(err));
       Alert.alert('Error', 'No se pudo aceptar el viaje.');
       setRequests(prev => prev.filter(r => r.id !== tripId));
     }
@@ -184,6 +188,16 @@ export const DriverActiveTripScreen = ({ navigation, route }: any) => {
   const [showRate, setShowRate] = useState(false);
   const trip = route?.params?.trip;
   const locationIntervalRef = useRef<any>(null);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+
+  useEffect(() => {
+    if (trip?.passenger_lat && trip?.destination_lat) {
+      getRoute(
+        { latitude: trip.passenger_lat, longitude: trip.passenger_lng },
+        { latitude: trip.destination_lat, longitude: trip.destination_lng }
+      ).then(setRouteCoords);
+    }
+  }, [trip]);
 
   useEffect(() => {
     startLocationUpdates();
@@ -249,9 +263,28 @@ export const DriverActiveTripScreen = ({ navigation, route }: any) => {
           <View style={s.farePill}><Text style={s.farePillTxt}>${trip?.fare?.toFixed(2) ?? '5.00'}</Text></View>
         </View>
       </View>
-     <MapView style={s.map} provider={PROVIDER_DEFAULT} initialRegion={{ latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182, latitudeDelta: 0.01, longitudeDelta: 0.01 }} showsUserLocation>
-        <Marker coordinate={{ latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182 }} title={trip?.passenger_name ?? 'Pasajero'} pinColor={Colors.info} />
-        <Marker coordinate={{ latitude: trip?.destination_lat ?? 13.6910, longitude: trip?.destination_lng ?? -89.2250 }} title={trip?.destination_address ?? 'Destino'} pinColor={Colors.danger} />
+     <MapView
+        style={s.map}
+        provider={PROVIDER_DEFAULT}
+        initialRegion={{
+          latitude: ((trip?.passenger_lat ?? 13.6929) + (trip?.destination_lat ?? 13.6910)) / 2,
+          longitude: ((trip?.passenger_lng ?? -89.2182) + (trip?.destination_lng ?? -89.2250)) / 2,
+          latitudeDelta: Math.abs((trip?.passenger_lat ?? 13.6929) - (trip?.destination_lat ?? 13.6910)) + 0.02,
+          longitudeDelta: Math.abs((trip?.passenger_lng ?? -89.2182) - (trip?.destination_lng ?? -89.2250)) + 0.02,
+        }}
+        showsUserLocation
+      >
+        <Marker coordinate={{ latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182 }} title={`📍 ${trip?.passenger_name ?? 'Pasajero'}`} description="Punto de recogida" pinColor={Colors.info} />
+        <Marker coordinate={{ latitude: trip?.destination_lat ?? 13.6910, longitude: trip?.destination_lng ?? -89.2250 }} title={`🏁 ${trip?.destination_address ?? 'Destino'}`} description="Destino del viaje" pinColor={Colors.danger} />
+        
+          <Polyline
+          coordinates={routeCoords.length > 0 ? routeCoords : [
+            { latitude: trip?.passenger_lat ?? 13.6929, longitude: trip?.passenger_lng ?? -89.2182 },
+            { latitude: trip?.destination_lat ?? 13.6910, longitude: trip?.destination_lng ?? -89.2250 },
+          ]}
+          strokeColor={Colors.primary}
+          strokeWidth={4}
+        />
       </MapView>
       <TouchableOpacity style={s.navBtnFloat} onPress={handleNavigate}>
         <Text style={s.navBtnTxt}>🧭 Abrir en Google Maps</Text>
