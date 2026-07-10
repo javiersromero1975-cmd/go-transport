@@ -75,6 +75,27 @@ export const DriverHomeScreen = ({ navigation }: any) => {
   const { user, updateUser } = useAuth();
   const [isOnline, setIsOnline] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
+  const [earnings, setEarnings] = useState({ today: 0, trips: 0, acceptance: 0 });
+
+  useEffect(() => { loadEarnings(); }, []);
+
+  const loadEarnings = async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from('viajes')
+        .select('fare, status')
+        .eq('driver_id', user?.id)
+        .gte('created_at', today.toISOString());
+      if (data) {
+        const completed = data.filter(t => t.status === 'completed');
+        const total = completed.reduce((sum, t) => sum + (t.fare ?? 0), 0);
+        const acceptance = data.length > 0 ? Math.round((completed.length / data.length) * 100) : 0;
+        setEarnings({ today: total, trips: completed.length, acceptance });
+      }
+    } catch {}
+  };
   const initials = `${user?.name?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
   const channelRef = useRef<any>(null);
 
@@ -160,7 +181,7 @@ export const DriverHomeScreen = ({ navigation }: any) => {
           <View style={[s.toggle, isOnline ? s.toggleOn : s.toggleOff]}><View style={[s.knob, isOnline ? s.knobRight : s.knobLeft]} /></View>
         </TouchableOpacity>
         <View style={s.earningsRow}>
-          {[['$47.50','Hoy'],['8','Viajes'],['94%','Aceptación']].map(([v,l]) => (
+          {[[`$${earnings.today.toFixed(2)}`, 'Hoy'], [`${earnings.trips}`, 'Viajes'], [`${earnings.acceptance}%`, 'Aceptación']].map(([v,l]) => (
             <View key={l} style={s.earnCard}><Text style={s.earnVal}>{v}</Text><Text style={s.earnLabel}>{l}</Text></View>
           ))}
         </View>
