@@ -16,16 +16,24 @@ const RequestCard = ({ req, onAccept, onDecline }: any) => {
   const [counterOffer, setCounterOffer] = useState(req.fare?.toFixed(2) ?? '5.00');
 
   useEffect(() => {
-    Animated.timing(timerAnim, { toValue: 0, duration: 20000, useNativeDriver: false }).start(() => onDecline());
+    Animated.timing(timerAnim, { toValue: 0, duration: 60000, useNativeDriver: false }).start(() => onDecline());
   }, []);
 
   const initials = (req.passenger_name ?? 'PA').split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
-  const handleCounter = () => {
+  const handleCounter = async () => {
     const amount = parseFloat(counterOffer);
     if (isNaN(amount) || amount <= 0) { Alert.alert('Ingresa un precio válido'); return; }
     setShowCounter(false);
-    Alert.alert('✅ Contraoferta enviada', `Le ofreciste $${amount.toFixed(2)}`, [{ text: 'OK', onPress: onAccept }]);
+    try {
+      await supabase
+        .from('viajes')
+        .update({ counter_offer: amount, counter_offer_status: 'pending' })
+        .eq('id', req.id);
+      Alert.alert('✅ Contraoferta enviada', `Le ofreciste $${amount.toFixed(2)} al pasajero.`);
+    } catch {
+      Alert.alert('Error', 'No se pudo enviar la contraoferta.');
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { useKeepAwake } from 'expo-keep-awake';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -12,6 +13,10 @@ import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
 export const SearchingScreen = ({ navigation, route }: any) => {
   const pulse = useRef(new Animated.Value(1)).current;
+  const tripId = route?.params?.tripId;
+  const [counterOffer, setCounterOffer] = useState<number | null>(null);
+  useKeepAwake();
+
   useEffect(() => {
     const anim = Animated.loop(Animated.sequence([
       Animated.timing(pulse, { toValue: 1.3, duration: 700, useNativeDriver: true }),
@@ -20,6 +25,41 @@ export const SearchingScreen = ({ navigation, route }: any) => {
     anim.start();
     return () => anim.stop();
   }, []);
+
+  useEffect(() => {
+    if (!tripId) return;
+    const channel = supabase
+      .channel(`counter-${tripId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'viajes',
+        filter: `id=eq.${tripId}`,
+      }, (payload) => {
+        if (payload.new.counter_offer_status === 'pending' && payload.new.counter_offer) {
+          setCounterOffer(payload.new.counter_offer);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [tripId]);
+
+  const handleAcceptCounter = async () => {
+    if (!counterOffer || !tripId) return;
+    await supabase.from('viajes')
+      .update({ fare: counterOffer, counter_offer_status: 'accepted', status: 'pending' })
+      .eq('id', tripId);
+    setCounterOffer(null);
+    Alert.alert('✅ Contraoferta aceptada', `El conductor será notificado del nuevo precio $${counterOffer.toFixed(2)}`);
+  };
+
+  const handleRejectCounter = async () => {
+    if (!tripId) return;
+    await supabase.from('viajes').update({ counter_offer_status: 'rejected' }).eq('id', tripId);
+    setCounterOffer(null);
+    Alert.alert('❌ Contraoferta rechazada', 'Seguimos buscando conductor con tu precio original.');
+  };
+
   return (
     <View style={ss.bg}>
       <SafeAreaView style={ss.content}>
@@ -29,6 +69,20 @@ export const SearchingScreen = ({ navigation, route }: any) => {
         </Animated.View>
         <Text style={ss.title}>Buscando conductor...</Text>
         <Text style={ss.sub}>Los conductores cerca pueden aceptar tu oferta</Text>
+        {counterOffer && (
+          <View style={ss.counterCard}>
+            <Text style={ss.counterTitle}>💬 Contraoferta recibida</Text>
+            <Text style={ss.counterAmount}>${counterOffer.toFixed(2)}</Text>
+            <View style={ss.counterBtns}>
+              <TouchableOpacity style={ss.rejectBtn} onPress={handleRejectCounter}>
+                <Text style={ss.rejectTxt}>❌ Rechazar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={ss.acceptBtn} onPress={handleAcceptCounter}>
+                <Text style={ss.acceptTxt}>✅ Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         <TouchableOpacity style={ss.simulateBtn} onPress={() => navigation.replace('ActiveTrip', { fare: route?.params?.fare ?? 5 })}>
           <Text style={ss.simulateTxt}>Simular: conductor encontrado →</Text>
         </TouchableOpacity>
@@ -50,6 +104,14 @@ const ss = StyleSheet.create({
   simulateTxt: { color: Colors.primary, fontSize: FontSize.base, fontWeight: '600' },
   cancelBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.25)' },
   cancelTxt: { color: Colors.white, fontSize: FontSize.base },
+  counterCard: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Radii.lg, padding: Spacing.lg, marginBottom: Spacing.lg, alignItems: 'center', width: '100%' },
+  counterTitle: { fontSize: FontSize.base, color: Colors.white, fontWeight: '600', marginBottom: 8 },
+  counterAmount: { fontSize: 36, fontWeight: '700', color: Colors.accent, marginBottom: 16 },
+  counterBtns: { flexDirection: 'row', gap: 12, width: '100%' },
+  rejectBtn: { flex: 1, paddingVertical: 12, borderRadius: Radii.md, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center' },
+  rejectTxt: { fontSize: FontSize.base, color: Colors.white, fontWeight: '500' },
+  acceptBtn: { flex: 1, paddingVertical: 12, borderRadius: Radii.md, backgroundColor: Colors.accent, alignItems: 'center' },
+  acceptTxt: { fontSize: FontSize.base, color: Colors.primary, fontWeight: '600' },
 });
 
  export const ActiveTripScreen = ({ navigation, route }: any) => {
