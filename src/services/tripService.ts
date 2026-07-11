@@ -46,6 +46,7 @@ export const getPendingTrips = async () => {
 };
 
 export const acceptTrip = async (tripId: string, driverData: { driver_id: string; driver_name: string; driver_phone: string; driver_lat: number; driver_lng: number }) => {
+  
   const { data, error } = await supabase
     .from('viajes')
     .update({ ...driverData, status: 'accepted', accepted_at: new Date().toISOString() })

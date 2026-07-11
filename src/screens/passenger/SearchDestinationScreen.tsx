@@ -1,4 +1,3 @@
-import axios from 'axios';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -6,16 +5,21 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput, TouchableOpacity,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Colors, FontSize, Radii, Spacing } from '../../theme';
 
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCABVASK1gEU1Fa0VUGHoGiOQclgVU0buk';
+
 interface Place {
   place_id: string;
-  display_name: string;
-  lat: string;
-  lon: string;
+  description: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
+  };
 }
 
 export const SearchDestinationScreen = ({ navigation, route }: any) => {
@@ -28,16 +32,12 @@ export const SearchDestinationScreen = ({ navigation, route }: any) => {
     if (text.length < 3) { setResults([]); return; }
     setLoading(true);
     try {
-      const response = await axios.get('https://nominatim.openstreetmap.org/search', {
-        params: {
-          q: `${text}, El Salvador`,
-          format: 'json',
-          limit: 8,
-          countrycodes: 'sv',
-        },
-        headers: { 'Accept-Language': 'es' },
-      });
-      setResults(response.data);
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&components=country:sv&language=es&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      console.log('PLACES API:', JSON.stringify(data));
+      setResults(data.predictions ?? []);
     } catch {
       setResults([]);
     } finally {
@@ -45,18 +45,25 @@ export const SearchDestinationScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const selectPlace = (place: Place) => {
-    if (route.params?.onSelect) {
-      route.params.onSelect({
-        address: place.display_name.split(',').slice(0, 2).join(','),
-        latitude: parseFloat(place.lat),
-        longitude: parseFloat(place.lon),
-      });
-    }
+  const selectPlace = async (place: Place) => {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=geometry,formatted_address&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      const location = data.result?.geometry?.location;
+      if (route.params?.onSelect && location) {
+        route.params.onSelect({
+          address: place.structured_formatting.main_text,
+          latitude: location.lat,
+          longitude: location.lng,
+        });
+      }
+    } catch {}
     navigation.goBack();
   };
 
-const RECIENTES = [
+  const RECIENTES = [
     { id: 'r1', name: 'Metrocentro', sub: 'San Salvador', lat: 13.6929, lng: -89.2182 },
     { id: 'r2', name: 'Aeropuerto Internacional', sub: 'San Luis Talpa', lat: 13.4409, lng: -89.0556 },
     { id: 'r3', name: 'Plaza Mundo', sub: 'Soyapango', lat: 13.7058, lng: -89.1517 },
@@ -73,7 +80,7 @@ const RECIENTES = [
           <Text style={s.inputIcon}>🔍</Text>
           <TextInput
             style={s.input}
-            placeholder="Buscar destino..."
+            placeholder={route.params?.placeholder ?? 'Buscar destino...'}
             placeholderTextColor={Colors.textTertiary}
             value={query}
             onChangeText={search}
@@ -100,7 +107,7 @@ const RECIENTES = [
           {RECIENTES.map(r => (
             <TouchableOpacity key={r.id} style={s.recentItem} onPress={() => {
               if (route.params?.onSelect) {
-               route.params.onSelect({ address: r.name, latitude: r.lat, longitude: r.lng });
+                route.params.onSelect({ address: r.name, latitude: r.lat, longitude: r.lng });
               }
               navigation.goBack();
             }}>
@@ -117,32 +124,18 @@ const RECIENTES = [
       {results.length > 0 && (
         <FlatList
           data={results}
-          keyExtractor={item => item.place_id}
-          contentContainerStyle={{ padding: Spacing.lg }}
+          keyExtractor={i => i.place_id}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <TouchableOpacity style={s.resultItem} onPress={() => selectPlace(item)}>
-              <View style={s.resultIcon}><Text style={{ fontSize: 18 }}>📍</Text></View>
+              <Text style={s.resultIcon}>📍</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.resultName} numberOfLines={1}>
-                  {item.display_name.split(',')[0]}
-                </Text>
-                <Text style={s.resultSub} numberOfLines={1}>
-                  {item.display_name.split(',').slice(1, 3).join(',')}
-                </Text>
+                <Text style={s.resultMain}>{item.structured_formatting.main_text}</Text>
+                <Text style={s.resultSub}>{item.structured_formatting.secondary_text}</Text>
               </View>
             </TouchableOpacity>
           )}
-          ItemSeparatorComponent={() => <View style={{ height: 0.5, backgroundColor: Colors.border }} />}
         />
-      )}
-
-      {query.length >= 3 && !loading && results.length === 0 && (
-        <View style={s.empty}>
-          <Text style={s.emptyIcon}>🔍</Text>
-          <Text style={s.emptyTxt}>No encontramos "{query}"</Text>
-          <Text style={s.emptySub}>Intenta con otro nombre o dirección</Text>
-        </View>
       )}
     </SafeAreaView>
   );
@@ -150,27 +143,23 @@ const RECIENTES = [
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
-  header: { flexDirection: 'row', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 0.5, borderColor: Colors.border, gap: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 0.5, borderColor: Colors.border, gap: 10 },
   backBtn: { padding: 4 },
   backTxt: { fontSize: 22, color: Colors.primary },
-  inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Radii.lg, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 0.5, borderColor: Colors.border },
+  inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Radii.lg, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 0.5, borderColor: Colors.border, gap: 8 },
   inputIcon: { fontSize: 16 },
   input: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary },
-  clearBtn: { fontSize: 14, color: Colors.textTertiary, padding: 2 },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: Spacing.lg },
+  clearBtn: { fontSize: 16, color: Colors.textTertiary, padding: 4 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, gap: 8 },
   loadingTxt: { fontSize: FontSize.sm, color: Colors.textSecondary },
   section: { padding: Spacing.lg },
   sectionLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 12 },
-  recentItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: Colors.border },
+  recentItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12, borderBottomWidth: 0.5, borderColor: Colors.border },
   recentIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
-  recentName: { fontSize: FontSize.base, fontWeight: '500', color: Colors.textPrimary },
+  recentName: { fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: '500' },
   recentSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  resultItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
-  resultIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
-  resultName: { fontSize: FontSize.base, fontWeight: '500', color: Colors.textPrimary },
+  resultItem: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 0.5, borderColor: Colors.border, gap: 12 },
+  resultIcon: { fontSize: 18 },
+  resultMain: { fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: '500' },
   resultSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyIcon: { fontSize: 40, marginBottom: 14 },
-  emptyTxt: { fontSize: FontSize.base, color: Colors.textPrimary, marginBottom: 6 },
-  emptySub: { fontSize: FontSize.sm, color: Colors.textSecondary },
 });
